@@ -1,381 +1,517 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  User,
   ShieldCheck,
-  X,
   Store,
   Lock,
   ArrowRight,
   Eye,
-  EyeOff
+  EyeOff,
+  User,
+  Cloud,
+  AlertCircle
 } from 'lucide-react';
-import type { CounterProfile } from '../types';
 
 export const LandingScreen: React.FC = () => {
-  const { config, counters, loginAsMember } = useApp();
-  const [selectedProfile, setSelectedProfile] = useState<{ id: string; name: string; role: 'employee' | 'admin'; color: string; bg: string; border: string } | null>(null);
+  const { config, counters, loginAsMember, isCloudConnected } = useApp();
+  
+  const [loginRole, setLoginRole] = useState<'admin' | 'counter'>('admin');
+  const [selectedCounterId, setSelectedCounterId] = useState<string>(() => {
+    return counters.length > 0 ? counters[0].id : '';
+  });
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Update selected counter if counters list changes
   useEffect(() => {
-    if (selectedProfile) {
-      setPassword('');
-      setError(false);
-      setShowPassword(false);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
+    if (counters.length > 0 && (!selectedCounterId || !counters.some(c => c.id === selectedCounterId))) {
+      setSelectedCounterId(counters[0].id);
     }
-  }, [selectedProfile]);
+  }, [counters, selectedCounterId]);
 
-  const handleSelectCounter = (c: CounterProfile) => {
-    setSelectedProfile({
-      id: c.id,
-      name: c.name,
-      role: 'employee',
-      color: c.color || '#2563eb',
-      bg: c.bg || '#eff6ff',
-      border: c.border || '#bfdbfe',
-    });
-  };
+  // Focus password on role switch
+  useEffect(() => {
+    setPassword('');
+    setError(false);
+    setShowPassword(false);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  }, [loginRole, selectedCounterId]);
 
-  const handleSelectAdmin = () => {
-    setSelectedProfile({
-      id: 'admin',
-      name: 'Admin / Owner',
-      role: 'admin',
-      color: '#1e40af',
-      bg: '#eff6ff',
-      border: '#93c5fd',
-    });
-  };
-
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProfile) return;
-
-    const ok = loginAsMember(selectedProfile.name, password);
+    const ok = loginAsMember('Admin / Owner', password);
     if (!ok) {
       setError(true);
-    } else {
-      setSelectedProfile(null);
     }
   };
+
+  const handleCounterLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetCounter = counters.find(c => c.id === selectedCounterId);
+    if (!targetCounter) {
+      setError(true);
+      return;
+    }
+    const ok = loginAsMember(targetCounter.name, password);
+    if (!ok) {
+      setError(true);
+    }
+  };
+
+  const currentCounter = counters.find(c => c.id === selectedCounterId) || counters[0];
 
   return (
     <div
       style={{
-        minHeight: '85vh',
+        minHeight: '88vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem',
+        padding: '1.25rem 1rem',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '640px' }}>
+      <div style={{ width: '100%', maxWidth: '440px' }}>
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
               background: '#2563eb',
-              color: '#fff',
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 0.6rem auto',
-              boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
+              margin: '0 auto 0.75rem auto',
+              boxShadow: '0 8px 16px rgba(37, 99, 235, 0.25)',
             }}
           >
-            <Store size={24} />
+            <Store size={26} />
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.25rem' }}>
             {config.businessName || 'ACL Counter Manage'}
           </h1>
-          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem' }}>
-            Select your counter profile to login
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem' }}>
+            Daily Cash & Transaction Management System
           </p>
+
+          {/* Cloud Status Pill */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.2rem 0.65rem',
+              borderRadius: '20px',
+              background: isCloudConnected ? '#f0fdf4' : '#fffbeb',
+              border: `1px solid ${isCloudConnected ? '#bbf7d0' : '#fde68a'}`,
+              fontSize: '0.675rem',
+              fontWeight: 700,
+              color: isCloudConnected ? '#166534' : '#b45309',
+            }}
+          >
+            <Cloud size={12} />
+            <span>{isCloudConnected ? '🟢 Firebase Cloud Sync Active (acl-tran)' : '🟡 Local Mode (Reconnecting)'}</span>
+          </div>
         </div>
 
-        {/* Dynamic Member Profile Grid */}
+        {/* Login Card */}
         <div
+          className="card animate-scale-in"
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '0.65rem',
+            background: '#ffffff',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+            overflow: 'hidden',
             marginBottom: '1rem',
           }}
         >
-          {counters.map((c, idx) => {
-            const color = c.color || '#2563eb';
-            const bg = c.bg || '#eff6ff';
-            const border = c.border || '#bfdbfe';
+          {/* Role Switcher Tabs */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              padding: '0.25rem',
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.65rem 0.75rem',
+                border: 'none',
+                borderRadius: '8px',
+                background: loginRole === 'admin' ? '#ffffff' : 'transparent',
+                color: loginRole === 'admin' ? '#1d4ed8' : '#64748b',
+                fontWeight: loginRole === 'admin' ? 800 : 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                boxShadow: loginRole === 'admin' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              onClick={() => setLoginRole('admin')}
+            >
+              <ShieldCheck size={16} />
+              <span>Admin / Owner</span>
+            </button>
 
-            return (
-              <button
-                key={c.id}
-                type="button"
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  border: `1.5px solid ${border}`,
-                  padding: '0.85rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                }}
-                onClick={() => handleSelectCounter(c)}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                  (e.currentTarget as HTMLElement).style.borderColor = color;
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                  (e.currentTarget as HTMLElement).style.borderColor = border;
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.65rem 0.75rem',
+                border: 'none',
+                borderRadius: '8px',
+                background: loginRole === 'counter' ? '#ffffff' : 'transparent',
+                color: loginRole === 'counter' ? '#16a34a' : '#64748b',
+                fontWeight: loginRole === 'counter' ? 800 : 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                boxShadow: loginRole === 'counter' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+              onClick={() => setLoginRole('counter')}
+            >
+              <User size={16} />
+              <span>Counter Staff</span>
+            </button>
+          </div>
+
+          <div style={{ padding: '1.5rem' }}>
+            {/* 1. ADMIN LOGIN FORM */}
+            {loginRole === 'admin' && (
+              <form onSubmit={handleAdminLogin}>
+                <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
                   <div
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '8px',
-                      background: bg,
-                      color: color,
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      background: '#eff6ff',
+                      color: '#2563eb',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      margin: '0 auto 0.5rem auto',
                     }}
                   >
-                    <User size={20} />
+                    <ShieldCheck size={22} />
                   </div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>
+                    Admin / Owner Login
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    Manage counters, transactions, day closing & store settings
+                  </p>
+                </div>
 
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>
-                      {c.name}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                      Counter #{idx + 1}
-                    </div>
+                <div className="form-group" style={{ position: 'relative', marginBottom: '0.85rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.775rem', fontWeight: 700 }}>
+                    Admin Password:
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      ref={inputRef}
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-input"
+                      style={{
+                        paddingLeft: '2.4rem',
+                        paddingRight: '2.5rem',
+                        fontSize: '0.95rem',
+                        fontWeight: 600,
+                        border: error ? '1.5px solid #dc2626' : '1px solid #cbd5e1',
+                      }}
+                      placeholder="admin@123"
+                      value={password}
+                      onChange={e => {
+                        setPassword(e.target.value);
+                        setError(false);
+                      }}
+                      required
+                    />
+                    <Lock
+                      size={15}
+                      style={{
+                        position: 'absolute',
+                        left: '0.85rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#94a3b8',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 
-                <div
+                {error && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.5rem 0.75rem',
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                      borderRadius: '6px',
+                      color: '#dc2626',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      marginBottom: '0.85rem',
+                    }}
+                  >
+                    <AlertCircle size={14} />
+                    <span>Incorrect password. Default: <code>admin@123</code></span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn-fast-income"
                   style={{
-                    width: '26px',
-                    height: '26px',
-                    borderRadius: '50%',
-                    background: bg,
-                    color: color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    width: '100%',
+                    padding: '0.8rem',
+                    fontSize: '0.925rem',
+                    background: '#2563eb',
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
                   }}
                 >
-                  <ArrowRight size={13} />
-                </div>
-              </button>
-            );
-          })}
+                  <span>Login as Admin</span>
+                  <ArrowRight size={16} />
+                </button>
+              </form>
+            )}
 
-          {/* Admin / Owner Profile Card */}
-          <button
-            type="button"
-            className="card"
-            style={{
-              background: '#ffffff',
-              border: '1.5px solid #93c5fd',
-              padding: '0.85rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              gridColumn: '1 / -1',
-            }}
-            onClick={handleSelectAdmin}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-              (e.currentTarget as HTMLElement).style.borderColor = '#2563eb';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-              (e.currentTarget as HTMLElement).style.borderColor = '#93c5fd';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <div
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '8px',
-                  background: '#eff6ff',
-                  color: '#1e40af',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <ShieldCheck size={20} />
-              </div>
-
+            {/* 2. COUNTER STAFF LOGIN FORM */}
+            {loginRole === 'counter' && (
               <div>
-                <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>
-                  Admin / Owner
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                  Manage Counters, Full Reports & Settings
-                </div>
-              </div>
-            </div>
+                {counters.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '10px',
+                        background: '#fef3c7',
+                        color: '#d97706',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 0.5rem auto',
+                      }}
+                    >
+                      <User size={22} />
+                    </div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem' }}>
+                      No Counters Created Yet
+                    </h3>
+                    <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '1.25rem' }}>
+                      Please login as Admin to create and configure your store counters in Settings.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-fast-income"
+                      style={{ width: '100%', padding: '0.75rem', fontSize: '0.85rem', background: '#2563eb' }}
+                      onClick={() => setLoginRole('admin')}
+                    >
+                      <span>Switch to Admin Login</span>
+                      <ArrowRight size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCounterLogin}>
+                    <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                      <div
+                        style={{
+                          width: '44px',
+                          height: '44px',
+                          borderRadius: '10px',
+                          background: currentCounter?.bg || '#eff6ff',
+                          color: currentCounter?.color || '#2563eb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 0.5rem auto',
+                        }}
+                      >
+                        <User size={22} />
+                      </div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.2rem' }}>
+                        Counter Staff Login
+                      </h3>
+                      <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Select your counter & enter password to record transactions
+                      </p>
+                    </div>
 
-            <div
-              style={{
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                background: '#eff6ff',
-                color: '#1e40af',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <ArrowRight size={13} />
-            </div>
-          </button>
+                    {/* Counter Selection Dropdown */}
+                    <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+                      <label className="form-label" style={{ fontSize: '0.775rem', fontWeight: 700 }}>
+                        Select Counter:
+                      </label>
+                      <select
+                        className="form-input"
+                        style={{ fontSize: '0.9rem', fontWeight: 700, padding: '0.55rem 0.75rem' }}
+                        value={selectedCounterId}
+                        onChange={e => setSelectedCounterId(e.target.value)}
+                      >
+                        {counters.map((c, idx) => (
+                          <option key={c.id} value={c.id}>
+                            👤 {c.name} (Counter #{idx + 1})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Counter Password */}
+                    <div className="form-group" style={{ position: 'relative', marginBottom: '0.85rem' }}>
+                      <label className="form-label" style={{ fontSize: '0.775rem', fontWeight: 700 }}>
+                        Counter Password:
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          ref={inputRef}
+                          type={showPassword ? 'text' : 'password'}
+                          className="form-input"
+                          style={{
+                            paddingLeft: '2.4rem',
+                            paddingRight: '2.5rem',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            border: error ? '1.5px solid #dc2626' : '1px solid #cbd5e1',
+                          }}
+                          placeholder={currentCounter?.password ? 'Enter password' : 'P@counter'}
+                          value={password}
+                          onChange={e => {
+                            setPassword(e.target.value);
+                            setError(false);
+                          }}
+                          required
+                        />
+                        <Lock
+                          size={15}
+                          style={{
+                            position: 'absolute',
+                            left: '0.85rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#94a3b8',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          style={{
+                            position: 'absolute',
+                            right: '0.75rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.5rem 0.75rem',
+                          background: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          color: '#dc2626',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          marginBottom: '0.85rem',
+                        }}
+                      >
+                        <AlertCircle size={14} />
+                        <span>Incorrect password. Default: <code>P@counter</code></span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="btn-fast-income"
+                      style={{
+                        width: '100%',
+                        padding: '0.8rem',
+                        fontSize: '0.925rem',
+                        background: currentCounter?.color || '#16a34a',
+                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
+                      }}
+                    >
+                      <span>Enter {currentCounter?.name}</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Password Hints Footer */}
+        {/* Default Passwords Quick Card */}
         <div
           style={{
             textAlign: 'center',
-            padding: '0.65rem 0.85rem',
+            padding: '0.75rem 1rem',
             background: '#ffffff',
-            borderRadius: '8px',
+            borderRadius: '10px',
             border: '1px solid #e2e8f0',
-            fontSize: '0.725rem',
+            fontSize: '0.75rem',
             color: '#64748b',
             display: 'flex',
             justifyContent: 'center',
-            gap: '1rem',
+            gap: '1.25rem',
             flexWrap: 'wrap',
           }}
         >
-          <span>👤 Counter Password: <strong>P@counter</strong></span>
+          <span>🛡️ Admin: <strong>admin@123</strong></span>
           <span>•</span>
-          <span>🛡️ Admin Password: <strong>admin@123</strong></span>
+          <span>👤 Counter: <strong>P@counter</strong></span>
         </div>
       </div>
-
-      {/* Password Modal */}
-      {selectedProfile && (
-        <div className="modal-overlay" onClick={() => setSelectedProfile(null)}>
-          <div
-            className="modal-content animate-scale-in"
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: '360px', padding: '1.35rem', textAlign: 'center' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-0.5rem -0.25rem 0.25rem 0' }}>
-              <button className="icon-btn" onClick={() => setSelectedProfile(null)}>
-                <X size={15} />
-              </button>
-            </div>
-
-            <div
-              style={{
-                width: '46px',
-                height: '46px',
-                borderRadius: '50%',
-                background: selectedProfile.bg,
-                color: selectedProfile.color,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.65rem auto',
-              }}
-            >
-              <Lock size={22} />
-            </div>
-
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-              Login: {selectedProfile.name}
-            </h3>
-            <p style={{ fontSize: '0.775rem', color: '#64748b', marginBottom: '1rem', marginTop: '0.15rem' }}>
-              Enter password for {selectedProfile.name}
-            </p>
-
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group" style={{ position: 'relative', marginBottom: '0.65rem' }}>
-                <input
-                  ref={inputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-input"
-                  style={{
-                    textAlign: 'center',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    paddingRight: '2.5rem',
-                    border: error ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
-                  }}
-                  placeholder={selectedProfile.role === 'admin' ? 'admin@123' : 'P@counter'}
-                  value={password}
-                  onChange={e => {
-                    setPassword(e.target.value);
-                    setError(false);
-                  }}
-                  required
-                />
-                <button
-                  type="button"
-                  style={{
-                    position: 'absolute',
-                    right: '0.65rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#94a3b8',
-                  }}
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-
-              {error && (
-                <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600, marginBottom: '0.65rem' }}>
-                  Incorrect Password! Default: <code>{selectedProfile.role === 'admin' ? 'admin@123' : 'P@counter'}</code>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn-fast-income"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  fontSize: '0.9rem',
-                  background: selectedProfile.color,
-                  boxShadow: 'none',
-                }}
-              >
-                <span>Enter Counter</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

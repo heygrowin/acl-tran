@@ -11,11 +11,18 @@ import type {
   CounterProfile
 } from '../types';
 import { storage, getTodayDateString } from '../services/storageService';
+import {
+  subscribeToTransactions,
+  subscribeToClosings,
+  subscribeToLoans,
+  subscribeToConfig
+} from '../services/firebaseService';
 import { sound } from '../services/audioService';
 
 interface AppContextType {
   config: BusinessConfig;
   updateConfig: (newConfig: BusinessConfig) => void;
+  isCloudConnected: boolean;
   
   // Navigation & Screens
   currentScreen: CurrentScreen;
@@ -80,9 +87,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfigState] = useState<BusinessConfig>(() => storage.getConfig());
   const [currentScreen, setCurrentScreen] = useState<CurrentScreen>('landing');
-  const [selectedMember, setSelectedMember] = useState<string>('Counter Member 1');
+  const [selectedMember, setSelectedMember] = useState<string>('Counter 1');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => storage.getTransactions());
   const [closings, setClosings] = useState<DailyClosing[]>(() => storage.getClosings());
@@ -118,6 +126,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshData();
   }, [selectedDate, refreshData]);
+
+  // Real-time Cloud Sync with Firebase Firestore
+  useEffect(() => {
+    const bizId = config.id || 'biz_default';
+
+    // 1. Transactions Stream
+    const unsubTx = subscribeToTransactions(
+      bizId,
+      cloudTxs => {
+        setIsCloudConnected(true);
+        if (cloudTxs && cloudTxs.length > 0) {
+          storage.saveTransactions(cloudTxs);
+          setTransactions(cloudTxs);
+          setDayBalances(storage.calculateDayBalances(selectedDate));
+        }
+      },
+      () => setIsCloudConnected(false)
+    );
+
+    // 2. Closings Stream
+    const unsubClosings = subscribeToClosings(
+      bizId,
+      cloudClosingsMap => {
+        setIsCloudConnected(true);
+        const list = Object.values(cloudClosingsMap);
+        if (list.length > 0) {
+          localStorage.setItem('acl_counter_closings_v5', JSON.stringify(list));
+          setClosings(list);
+          setDayBalances(storage.calculateDayBalances(selectedDate));
+        }
+      },
+      () => setIsCloudConnected(false)
+    );
+
+    // 3. Loans Stream
+    const unsubLoans = subscribeToLoans(
+      bizId,
+      cloudLoans => {
+        setIsCloudConnected(true);
+        if (cloudLoans && cloudLoans.length > 0) {
+          storage.saveLoans(cloudLoans);
+          setLoans(cloudLoans);
+        }
+      },
+      () => setIsCloudConnected(false)
+    );
+
+    // 4. Config Stream
+    const unsubConfig = subscribeToConfig(
+      bizId,
+      cloudConfig => {
+        setIsCloudConnected(true);
+        if (cloudConfig) {
+          localStorage.setItem('acl_counter_config_v5', JSON.stringify(cloudConfig));
+          setConfigState(cloudConfig);
+        }
+      },
+      () => setIsCloudConnected(false)
+    );
+
+    return () => {
+      unsubTx();
+      unsubClosings();
+      unsubLoans();
+      unsubConfig();
+    };
+  }, [config.id, selectedDate]);
 
   const updateConfig = (newConfig: BusinessConfig) => {
     storage.saveConfig(newConfig);
@@ -180,7 +255,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logoutToLanding = () => {
     setCurrentScreen('landing');
-    showToast('Returned to Profile Selection', 'info');
+    showToast('Returned to Login Screen', 'info');
   };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>): Transaction => {
@@ -299,6 +374,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         config,
         updateConfig,
+        isCloudConnected,
         currentScreen,
         selectedMember,
         loginAsMember,

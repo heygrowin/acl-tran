@@ -8,14 +8,23 @@ import type {
   PaymentMethodConfig,
   CounterProfile
 } from '../types';
+import {
+  saveTransactionToCloud,
+  deleteTransactionFromCloud,
+  saveClosingToCloud,
+  saveLoanToCloud,
+  deleteLoanFromCloud,
+  saveConfigToCloud,
+  deleteTransactionsBetweenInCloud
+} from './firebaseService';
 
 const STORAGE_KEYS = {
-  CONFIG: 'acl_counter_config_v4',
-  TRANSACTIONS: 'acl_counter_transactions_v4',
-  CLOSINGS: 'acl_counter_closings_v4',
-  LOANS: 'acl_counter_loans_v4',
-  OPENING_BALANCES: 'acl_counter_opening_balances_v4',
-  CURRENT_ROLE: 'acl_counter_current_role_v4',
+  CONFIG: 'acl_counter_config_v5',
+  TRANSACTIONS: 'acl_counter_transactions_v5',
+  CLOSINGS: 'acl_counter_closings_v5',
+  LOANS: 'acl_counter_loans_v5',
+  OPENING_BALANCES: 'acl_counter_opening_balances_v5',
+  CURRENT_ROLE: 'acl_counter_current_role_v5',
 };
 
 // Payment methods: Cash, UPI, RTGS
@@ -26,10 +35,7 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethodConfig[] = [
 ];
 
 export const DEFAULT_COUNTERS: CounterProfile[] = [
-  { id: 'counter_1', name: 'Counter Member 1', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  { id: 'counter_2', name: 'Counter Member 2', color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' },
-  { id: 'counter_3', name: 'Counter Member 3', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  { id: 'counter_4', name: 'Counter Member 4', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  { id: 'counter_1', name: 'Counter 1', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
 ];
 
 export const DEFAULT_INCOME_CATEGORIES = [
@@ -51,14 +57,14 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
 
 export const DEFAULT_CONFIG: BusinessConfig = {
   id: 'biz_default',
-  businessName: 'My Store Counter',
+  businessName: 'ACL Counter Manage',
   tagline: 'Daily Cash & Transaction Manager',
   phone: '+91 98765 43210',
   currency: '₹',
   adminPassword: 'admin@123',
   employeePassword: 'P@counter',
-  activeStaffName: 'Counter Member 1',
-  staffMembers: ['Counter Member 1', 'Counter Member 2', 'Counter Member 3', 'Counter Member 4', 'Admin / Owner'],
+  activeStaffName: 'Counter 1',
+  staffMembers: ['Counter 1', 'Admin / Owner'],
   counters: DEFAULT_COUNTERS,
   defaultOpeningCash: 10000,
   defaultOpeningOnline: 5000,
@@ -67,7 +73,7 @@ export const DEFAULT_CONFIG: BusinessConfig = {
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   theme: 'light',
   soundEnabled: true,
-  storageMode: 'local',
+  storageMode: 'firebase',
 };
 
 // Helper: Format Date to YYYY-MM-DD
@@ -94,143 +100,18 @@ export function formatCurrency(amount: number, currency = '₹'): string {
   return `${isNeg ? '-' : ''}${currency}${formatted}`;
 }
 
-// Initial seed demo data
+// Clean Initial State (0 Sample Data)
 function seedInitialData(): {
   config: BusinessConfig;
   transactions: Transaction[];
   closings: DailyClosing[];
   loans: LoanRecord[];
 } {
-  const today = getTodayDateString();
-  const now = Date.now();
-
-  const transactions: Transaction[] = [
-    {
-      id: 'tx_demo_1',
-      businessId: 'biz_default',
-      date: today,
-      time: '10:15',
-      type: 'income',
-      amount: 2500,
-      paymentMethod: 'cash',
-      category: 'Customer Order',
-      note: 'Customer Order #101',
-      staffName: 'Counter Member 1',
-      createdAt: now - 3600000 * 6,
-      updatedAt: now - 3600000 * 6,
-    },
-    {
-      id: 'tx_demo_2',
-      businessId: 'biz_default',
-      date: today,
-      time: '11:30',
-      type: 'income',
-      amount: 1200,
-      paymentMethod: 'upi',
-      category: 'Customer Order',
-      note: 'Online UPI payment',
-      staffName: 'Counter Member 2',
-      createdAt: now - 3600000 * 5,
-      updatedAt: now - 3600000 * 5,
-    },
-    {
-      id: 'tx_demo_3',
-      businessId: 'biz_default',
-      date: today,
-      time: '12:10',
-      type: 'expense',
-      amount: 150,
-      paymentMethod: 'cash',
-      category: 'Tea & Snacks',
-      note: 'Morning tea and snacks',
-      staffName: 'Counter Member 1',
-      createdAt: now - 3600000 * 4,
-      updatedAt: now - 3600000 * 4,
-    },
-    {
-      id: 'tx_demo_4',
-      businessId: 'biz_default',
-      date: today,
-      time: '13:45',
-      type: 'income',
-      amount: 5000,
-      paymentMethod: 'upi',
-      category: 'Advance Payment',
-      note: 'Advance payment via UPI',
-      staffName: 'Counter Member 3',
-      createdAt: now - 3600000 * 3,
-      updatedAt: now - 3600000 * 3,
-    },
-    {
-      id: 'tx_demo_5',
-      businessId: 'biz_default',
-      date: today,
-      time: '14:20',
-      type: 'expense',
-      amount: 300,
-      paymentMethod: 'cash',
-      category: 'Delivery & Auto/Fuel',
-      note: 'Parcel delivery charge',
-      staffName: 'Counter Member 1',
-      createdAt: now - 3600000 * 2.5,
-      updatedAt: now - 3600000 * 2.5,
-    },
-    {
-      id: 'tx_demo_6',
-      businessId: 'biz_default',
-      date: today,
-      time: '15:10',
-      type: 'expense',
-      amount: 2000,
-      paymentMethod: 'rtgs',
-      category: 'Material / Goods Purchase',
-      note: 'Stock goods purchase via RTGS',
-      staffName: 'Counter Member 4',
-      createdAt: now - 3600000 * 2,
-      updatedAt: now - 3600000 * 2,
-    },
-    {
-      id: 'tx_demo_7',
-      businessId: 'biz_default',
-      date: today,
-      time: '16:00',
-      type: 'expense',
-      amount: 10000,
-      paymentMethod: 'cash',
-      category: 'Loan Given',
-      note: 'Lent money to Ramesh for medical emergency',
-      isLoan: true,
-      loanType: 'given',
-      borrowerName: 'Ramesh Sharma',
-      borrowerPhone: '9876543210',
-      loanId: 'loan_demo_1',
-      staffName: 'Counter Member 1',
-      createdAt: now - 3600000,
-      updatedAt: now - 3600000,
-    }
-  ];
-
-  const loans: LoanRecord[] = [
-    {
-      id: 'loan_demo_1',
-      businessId: 'biz_default',
-      borrowerName: 'Ramesh Sharma',
-      borrowerPhone: '9876543210',
-      totalLent: 10000,
-      totalRepaid: 0,
-      pendingAmount: 10000,
-      notes: 'Medical emergency loan',
-      lastActivityDate: today,
-      createdAt: now - 3600000,
-      updatedAt: now - 3600000,
-    }
-  ];
-
   return {
     config: DEFAULT_CONFIG,
-    transactions,
+    transactions: [],
     closings: [],
-    loans,
+    loans: [],
   };
 }
 
@@ -250,6 +131,17 @@ export class StorageService {
 
   private ensureInitialized() {
     if (typeof window === 'undefined') return;
+    
+    // Purge any legacy demo data from older v4 keys
+    try {
+      localStorage.removeItem('acl_counter_config_v4');
+      localStorage.removeItem('acl_counter_transactions_v4');
+      localStorage.removeItem('acl_counter_closings_v4');
+      localStorage.removeItem('acl_counter_loans_v4');
+    } catch (e) {
+      // ignore
+    }
+
     const existingConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
     if (!existingConfig) {
       const initial = seedInitialData();
@@ -257,6 +149,7 @@ export class StorageService {
       localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(initial.transactions));
       localStorage.setItem(STORAGE_KEYS.CLOSINGS, JSON.stringify(initial.closings));
       localStorage.setItem(STORAGE_KEYS.LOANS, JSON.stringify(initial.loans));
+      saveConfigToCloud(initial.config);
     }
   }
 
@@ -280,6 +173,7 @@ export class StorageService {
 
   public saveConfig(config: BusinessConfig): void {
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
+    saveConfigToCloud(config);
   }
 
   // --- COUNTERS MANAGEMENT ---
@@ -302,7 +196,7 @@ export class StorageService {
       password: password?.trim() || undefined,
     };
 
-    const updatedCounters = [...(cfg.counters || DEFAULT_COUNTERS), newCounter];
+    const updatedCounters = [...(cfg.counters || []), newCounter];
     const updatedStaff = Array.from(new Set([...cfg.staffMembers, cleanName]));
 
     this.saveConfig({
@@ -317,7 +211,7 @@ export class StorageService {
   public updateCounter(id: string, name: string, password?: string, color?: string): void {
     const cfg = this.getConfig();
     const cleanName = name.trim();
-    const counters = (cfg.counters || DEFAULT_COUNTERS).map(c => {
+    const counters = (cfg.counters || []).map(c => {
       if (c.id === id) {
         return {
           ...c,
@@ -337,7 +231,7 @@ export class StorageService {
 
   public deleteCounter(id: string): boolean {
     const cfg = this.getConfig();
-    const counters = cfg.counters || DEFAULT_COUNTERS;
+    const counters = cfg.counters || [];
     if (counters.length <= 1) {
       return false; // keep at least 1 counter
     }
@@ -448,6 +342,7 @@ export class StorageService {
 
     transactions.unshift(newTx);
     this.saveTransactions(transactions);
+    saveTransactionToCloud(newTx);
     return newTx;
   }
 
@@ -455,14 +350,17 @@ export class StorageService {
     const transactions = this.getTransactions();
     const idx = transactions.findIndex(t => t.id === updatedTx.id);
     if (idx !== -1) {
-      transactions[idx] = { ...updatedTx, updatedAt: Date.now() };
+      const tx = { ...updatedTx, updatedAt: Date.now() };
+      transactions[idx] = tx;
       this.saveTransactions(transactions);
+      saveTransactionToCloud(tx);
     }
   }
 
   public deleteTransaction(id: string): void {
     const transactions = this.getTransactions().filter(t => t.id !== id);
     this.saveTransactions(transactions);
+    deleteTransactionFromCloud(id);
   }
 
   // --- DATE RANGE TRANSACTIONS QUERY & PURGE ---
@@ -475,6 +373,8 @@ export class StorageService {
     const toKeep = transactions.filter(t => t.date < startDate || t.date > endDate);
     const deletedCount = transactions.length - toKeep.length;
     this.saveTransactions(toKeep);
+    const cfg = this.getConfig();
+    deleteTransactionsBetweenInCloud(cfg.id, startDate, endDate);
     return deletedCount;
   }
 
@@ -483,6 +383,8 @@ export class StorageService {
     const toKeep = transactions.filter(t => !t.date.startsWith(yearMonth));
     const deletedCount = transactions.length - toKeep.length;
     this.saveTransactions(toKeep);
+    const cfg = this.getConfig();
+    deleteTransactionsBetweenInCloud(cfg.id, `${yearMonth}-01`, `${yearMonth}-31`);
     return deletedCount;
   }
 
@@ -604,6 +506,7 @@ export class StorageService {
     };
     closings.unshift(newClosing);
     localStorage.setItem(STORAGE_KEYS.CLOSINGS, JSON.stringify(closings));
+    saveClosingToCloud(newClosing);
 
     // Prefill tomorrow's opening balance
     const nextDate = new Date(closing.date);
@@ -669,6 +572,7 @@ export class StorageService {
     }
 
     this.saveLoans(loans);
+    saveLoanToCloud(loan);
 
     // Auto-create Expense (Money Out) transaction
     const tx = this.addTransaction({
@@ -709,6 +613,7 @@ export class StorageService {
     loan.lastActivityDate = date;
     loan.updatedAt = now;
     this.saveLoans(loans);
+    saveLoanToCloud(loan);
 
     // Auto-create Income (Money In) transaction
     const tx = this.addTransaction({
@@ -734,12 +639,13 @@ export class StorageService {
   public deleteLoan(id: string): void {
     const loans = this.getLoans().filter(l => l.id !== id);
     this.saveLoans(loans);
+    deleteLoanFromCloud(id);
   }
 
   // --- DATA BACKUP / RESTORE ---
   public exportFullBackup(): string {
     const data = {
-      version: '4.0',
+      version: '5.0',
       exportedAt: new Date().toISOString(),
       config: this.getConfig(),
       transactions: this.getTransactions(),
@@ -755,10 +661,19 @@ export class StorageService {
   public importFullBackup(jsonString: string): boolean {
     try {
       const data = JSON.parse(jsonString);
-      if (data.config) localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(data.config));
-      if (data.transactions) localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(data.transactions));
-      if (data.closings) localStorage.setItem(STORAGE_KEYS.CLOSINGS, JSON.stringify(data.closings));
-      if (data.loans) localStorage.setItem(STORAGE_KEYS.LOANS, JSON.stringify(data.loans));
+      if (data.config) this.saveConfig(data.config);
+      if (data.transactions) {
+        this.saveTransactions(data.transactions);
+        data.transactions.forEach((t: Transaction) => saveTransactionToCloud(t));
+      }
+      if (data.closings) {
+        localStorage.setItem(STORAGE_KEYS.CLOSINGS, JSON.stringify(data.closings));
+        data.closings.forEach((c: DailyClosing) => saveClosingToCloud(c));
+      }
+      if (data.loans) {
+        this.saveLoans(data.loans);
+        data.loans.forEach((l: LoanRecord) => saveLoanToCloud(l));
+      }
       if (data.openingBalances) localStorage.setItem(STORAGE_KEYS.OPENING_BALANCES, JSON.stringify(data.openingBalances));
       return true;
     } catch (e) {
