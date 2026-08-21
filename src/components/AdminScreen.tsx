@@ -6,6 +6,7 @@ import { TransactionLedger } from './TransactionLedger';
 import { LoanManager } from './LoanManager';
 import { ReportsAnalytics } from './ReportsAnalytics';
 import { SettingsModal } from './SettingsModal';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   LayoutDashboard,
   Receipt,
@@ -17,7 +18,9 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  PlusCircle,
+  MinusCircle
 } from 'lucide-react';
 import { getTodayDateString } from '../services/storageService';
 
@@ -29,6 +32,7 @@ export const AdminScreen: React.FC = () => {
     setSelectedDate,
     logoutToLanding,
     openClosingModal,
+    openCounterModal,
   } = useApp();
 
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -63,20 +67,20 @@ export const AdminScreen: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'space-between',
           background: '#ffffff',
-          padding: '0.65rem 1rem',
-          borderRadius: '10px',
+          padding: '0.45rem 0.75rem',
+          borderRadius: '8px',
           border: '1px solid #e2e8f0',
-          marginBottom: '0.75rem',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          marginBottom: '0.5rem',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
           flexWrap: 'wrap',
-          gap: '0.5rem',
+          gap: '0.4rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div
             style={{
-              width: '32px',
-              height: '32px',
+              width: '28px',
+              height: '28px',
               borderRadius: '6px',
               background: '#2563eb',
               color: '#fff',
@@ -85,25 +89,25 @@ export const AdminScreen: React.FC = () => {
               justifyContent: 'center',
             }}
           >
-            <ShieldCheck size={18} />
+            <ShieldCheck size={16} />
           </div>
           <div>
-            <h1 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+            <h1 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.15 }}>
               ACL Counter Manage
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem' }}>
-              <span className="badge badge-online" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
+              <span className="badge badge-online" style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem' }}>
                 Admin / Owner
               </span>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
           {/* Interactive Date Picker & Navigator */}
-          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', borderRadius: '6px', padding: '0.15rem 0.35rem', border: '1px solid #cbd5e1', position: 'relative' }}>
-            <button className="icon-btn" style={{ width: '24px', height: '24px' }} onClick={handlePrevDay} title="Previous Day">
-              <ChevronLeft size={14} />
+          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', borderRadius: '6px', padding: '0.12rem 0.3rem', border: '1px solid #cbd5e1', position: 'relative' }}>
+            <button className="icon-btn" style={{ width: '22px', height: '22px' }} onClick={handlePrevDay} title="Previous Day">
+              <ChevronLeft size={13} />
             </button>
 
             {/* Clickable Date Label + Native Calendar Trigger */}
@@ -111,9 +115,9 @@ export const AdminScreen: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0 0.4rem',
-                fontSize: '0.75rem',
+                gap: '0.25rem',
+                padding: '0 0.35rem',
+                fontSize: '0.725rem',
                 fontWeight: 600,
                 color: '#0f172a',
                 cursor: 'pointer',
@@ -122,7 +126,7 @@ export const AdminScreen: React.FC = () => {
               onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
               title="Click to pick any date from calendar"
             >
-              <Calendar size={13} style={{ color: '#2563eb' }} />
+              <Calendar size={12} style={{ color: '#2563eb' }} />
               <span>{isToday ? `Today (${formattedDate})` : formattedDate}</span>
 
               {/* Hidden native date input triggered on click */}
@@ -148,13 +152,13 @@ export const AdminScreen: React.FC = () => {
               />
             </div>
 
-            <button className="icon-btn" style={{ width: '24px', height: '24px' }} onClick={handleNextDay} title="Next Day">
-              <ChevronRight size={14} />
+            <button className="icon-btn" style={{ width: '22px', height: '22px' }} onClick={handleNextDay} title="Next Day">
+              <ChevronRight size={13} />
             </button>
 
             {!isToday && (
               <button
-                style={{ marginLeft: '0.25rem', fontSize: '0.65rem', padding: '0.15rem 0.4rem', background: '#2563eb', color: '#fff', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
+                style={{ marginLeft: '0.2rem', fontSize: '0.625rem', padding: '0.1rem 0.35rem', background: '#2563eb', color: '#fff', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
                 onClick={() => setSelectedDate(todayStr)}
               >
                 Today
@@ -162,73 +166,81 @@ export const AdminScreen: React.FC = () => {
             )}
           </div>
 
+          <PWAInstallButton />
+
           <button
             type="button"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.35rem 0.75rem',
+              gap: '0.25rem',
+              padding: '0.25rem 0.55rem',
               borderRadius: '6px',
               background: '#f8fafc',
               border: '1px solid #cbd5e1',
               color: '#475569',
-              fontSize: '0.775rem',
+              fontSize: '0.725rem',
               fontWeight: 600,
               cursor: 'pointer',
             }}
             onClick={logoutToLanding}
             title="Switch User / Logout"
           >
-            <LogOut size={13} />
-            <span>Switch User</span>
+            <LogOut size={12} />
+            <span>Switch</span>
           </button>
         </div>
       </div>
 
       {/* Admin Tabs */}
-      <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.75rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.5rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
         <button
           className={`nav-tab-btn ${adminTab === 'dashboard' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('dashboard')}
         >
-          <LayoutDashboard size={14} />
+          <LayoutDashboard size={13} />
           <span>Overview</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'transactions' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('transactions')}
         >
-          <Receipt size={14} />
-          <span>Transaction Log</span>
+          <Receipt size={13} />
+          <span>Transactions</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'loans' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('loans')}
         >
-          <HandCoins size={14} />
-          <span>Loans & Money Lent</span>
+          <HandCoins size={13} />
+          <span>Loans</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'closing' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('closing')}
         >
-          <Lock size={14} />
+          <Lock size={13} />
           <span>Day Closings</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'reports' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('reports')}
         >
-          <BarChart3 size={14} />
+          <BarChart3 size={13} />
           <span>Reports</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'settings' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
           onClick={() => setAdminTab('settings')}
         >
-          <Settings size={14} />
-          <span>Settings & Data</span>
+          <Settings size={13} />
+          <span>Settings</span>
         </button>
       </div>
 
@@ -238,7 +250,38 @@ export const AdminScreen: React.FC = () => {
           <div>
             <HeroStats />
             <RunningBalanceBar />
-            <div style={{ marginTop: '0.75rem' }}>
+
+            {/* Dual Fast Action Buttons: Left = + Income, Right = − Expense */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.45rem',
+                margin: '0.45rem 0',
+              }}
+            >
+              <button
+                type="button"
+                className="btn-fast-income"
+                onClick={() => openCounterModal('income')}
+                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#16a34a', boxShadow: 'none' }}
+              >
+                <PlusCircle size={16} />
+                <span>+ Income</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-fast-expense"
+                onClick={() => openCounterModal('expense')}
+                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#dc2626', boxShadow: 'none' }}
+              >
+                <MinusCircle size={16} />
+                <span>− Expense</span>
+              </button>
+            </div>
+
+            <div style={{ marginTop: '0.35rem' }}>
               <TransactionLedger />
             </div>
           </div>
@@ -246,6 +289,36 @@ export const AdminScreen: React.FC = () => {
 
         {adminTab === 'transactions' && (
           <div>
+            {/* Dual Fast Action Buttons: Left = + Income, Right = − Expense */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.45rem',
+                marginBottom: '0.45rem',
+              }}
+            >
+              <button
+                type="button"
+                className="btn-fast-income"
+                onClick={() => openCounterModal('income')}
+                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#16a34a', boxShadow: 'none' }}
+              >
+                <PlusCircle size={16} />
+                <span>+ Income</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-fast-expense"
+                onClick={() => openCounterModal('expense')}
+                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#dc2626', boxShadow: 'none' }}
+              >
+                <MinusCircle size={16} />
+                <span>− Expense</span>
+              </button>
+            </div>
+
             <TransactionLedger />
           </div>
         )}
@@ -255,23 +328,23 @@ export const AdminScreen: React.FC = () => {
         {adminTab === 'closing' && (
           <div>
             <HeroStats />
-            <div style={{ marginTop: '0.75rem', textAlign: 'center', padding: '1.25rem', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <Lock size={28} style={{ color: '#2563eb', marginBottom: '0.35rem' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>End-of-Day Closing & Cash Verification</h3>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '440px', margin: '0.35rem auto 1rem auto' }}>
+            <div style={{ marginTop: '0.5rem', textAlign: 'center', padding: '1rem', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <Lock size={24} style={{ color: '#2563eb', marginBottom: '0.25rem' }} />
+              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>End-of-Day Closing & Cash Verification</h3>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', maxWidth: '420px', margin: '0.25rem auto 0.75rem auto' }}>
                 Verify physical drawer cash notes and online statement balances to record daily match status.
               </p>
               <button
                 type="button"
                 className="btn-fast-income"
-                style={{ display: 'inline-flex', padding: '0.65rem 1.5rem', fontSize: '0.85rem' }}
+                style={{ display: 'inline-flex', padding: '0.5rem 1.25rem', fontSize: '0.8rem' }}
                 onClick={openClosingModal}
               >
-                <Lock size={15} />
+                <Lock size={14} />
                 <span>Open Day Closing Window</span>
               </button>
             </div>
-            <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ marginTop: '0.5rem' }}>
               <ReportsAnalytics />
             </div>
           </div>

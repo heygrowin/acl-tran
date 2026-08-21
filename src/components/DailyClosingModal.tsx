@@ -192,38 +192,38 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
 
   return (
     <div className="modal-overlay" onClick={closeClosingModal}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '720px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
         {/* Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '1rem 1.25rem',
+            padding: '0.65rem 0.85rem',
             borderBottom: '1px solid #e2e8f0',
             background: '#ffffff',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ padding: '0.35rem', borderRadius: '6px', background: '#eff6ff', color: '#2563eb' }}>
-              <Lock size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <div style={{ padding: '0.25rem', borderRadius: '5px', background: '#eff6ff', color: '#2563eb' }}>
+              <Lock size={16} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+              <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.15 }}>
                 End-of-Day Closing & Cash Verification
               </h2>
-              <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                Count drawer cash & verify online bank balance for {selectedDate}
+              <p style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                Verify drawer cash & online bank balance for {selectedDate}
               </p>
             </div>
           </div>
-          <button className="icon-btn" onClick={closeClosingModal}>
-            <X size={16} />
+          <button className="icon-btn" style={{ width: '26px', height: '26px' }} onClick={closeClosingModal}>
+            <X size={15} />
           </button>
         </div>
 
         {/* Content */}
-        <div style={{ padding: '1.25rem' }}>
+        <div style={{ padding: '0.75rem 0.85rem' }}>
           {!showSlip ? (
             <>
               {/* Top Quick Reconcile Preview */}
@@ -231,23 +231,23 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
-                  gap: '0.65rem',
-                  padding: '0.75rem 1rem',
+                  gap: '0.45rem',
+                  padding: '0.55rem 0.75rem',
                   background: '#f8fafc',
-                  borderRadius: '8px',
+                  borderRadius: '6px',
                   border: '1px solid #e2e8f0',
-                  marginBottom: '1rem',
+                  marginBottom: '0.65rem',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: '0.725rem', color: '#64748b' }}>Expected Cash in Drawer:</div>
-                  <div className="font-mono" style={{ fontSize: '1.3rem', fontWeight: 800, color: '#d97706' }}>
+                  <div style={{ fontSize: '0.675rem', color: '#64748b' }}>Expected Cash:</div>
+                  <div className="font-mono" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#d97706' }}>
                     {formatCurrency(dayBalances.expectedCash, config.currency)}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.725rem', color: '#64748b' }}>Expected Online/Bank Balance:</div>
-                  <div className="font-mono" style={{ fontSize: '1.3rem', fontWeight: 800, color: '#2563eb' }}>
+                  <div style={{ fontSize: '0.675rem', color: '#64748b' }}>Expected Online:</div>
+                  <div className="font-mono" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2563eb' }}>
                     {formatCurrency(dayBalances.expectedOnline, config.currency)}
                   </div>
                 </div>
@@ -255,13 +255,13 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
 
               {/* Multi-Cashier Breakdown Section */}
               {cashierList.length > 0 && (
-                <div style={{ marginBottom: '1.25rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, fontSize: '0.8rem', color: '#0f172a', marginBottom: '0.5rem' }}>
-                    <Users size={15} style={{ color: '#2563eb' }} />
-                    <span>Cashier / Counter Breakdown Today ({cashierList.length}):</span>
+                <div style={{ marginBottom: '0.65rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', padding: '0.55rem 0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700, fontSize: '0.75rem', color: '#0f172a', marginBottom: '0.35rem' }}>
+                    <Users size={13} style={{ color: '#2563eb' }} />
+                    <span>Cashier Breakdown ({cashierList.length}):</span>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     {cashierList.map(c => (
                       <div
                         key={c.staffName}
@@ -270,25 +270,25 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           background: '#ffffff',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '6px',
+                          padding: '0.35rem 0.55rem',
+                          borderRadius: '5px',
                           border: '1px solid #e2e8f0',
-                          fontSize: '0.775rem',
+                          fontSize: '0.725rem',
                         }}
                       >
                         <div style={{ fontWeight: 700, color: '#0f172a' }}>
                           👤 {c.staffName}
-                          <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: 400, marginLeft: '0.4rem' }}>
+                          <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 400, marginLeft: '0.3rem' }}>
                             ({c.transactionCount} entries)
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', fontFamily: 'var(--font-mono)' }}>
                           <span style={{ color: '#16a34a', fontWeight: 700 }}>
                             +{formatCurrency(c.income, config.currency)}
                           </span>
                           <span style={{ color: '#dc2626', fontWeight: 700 }}>
-                            -{formatCurrency(c.expense, config.currency)}
+                            −{formatCurrency(c.expense, config.currency)}
                           </span>
                         </div>
                       </div>
@@ -298,39 +298,39 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
               )}
 
               {/* Step 1: Physical Cash Count */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-                  <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+              <div style={{ marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: 0 }}>
                     💵 Physical Cash Count in Drawer:
                   </label>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                     <button
                       type="button"
-                      style={{ fontSize: '0.725rem', color: '#2563eb', textDecoration: 'underline', fontWeight: 600 }}
+                      style={{ fontSize: '0.7rem', color: '#2563eb', textDecoration: 'underline', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                       onClick={handleAutoFillExpected}
                     >
-                      Auto-fill Expected
+                      Auto-fill
                     </button>
-                    <span>•</span>
+                    <span style={{ color: '#cbd5e1' }}>•</span>
                     <button
                       type="button"
-                      style={{ fontSize: '0.725rem', color: '#64748b', textDecoration: 'underline' }}
+                      style={{ fontSize: '0.7rem', color: '#64748b', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                       onClick={() => setUseDenominationCalculator(!useDenominationCalculator)}
                     >
-                      {useDenominationCalculator ? 'Switch to Simple Total Input' : 'Use Note Calculator'}
+                      {useDenominationCalculator ? 'Simple Total' : 'Note Calculator'}
                     </button>
                   </div>
                 </div>
 
                 {useDenominationCalculator ? (
                   <div>
-                    <div className="denom-grid">
+                    <div className="denom-grid" style={{ gap: '0.35rem', marginBottom: '0.35rem' }}>
                       {DENOMINATIONS.map(d => {
                         const count = denoms[d.value.toString()] || 0;
                         const subTotal = d.value * count;
                         return (
-                          <div key={d.value} className="denom-box">
-                            <div className="denom-label-row">
+                          <div key={d.value} className="denom-box" style={{ padding: '0.35rem' }}>
+                            <div className="denom-label-row" style={{ fontSize: '0.7rem' }}>
                               <span>{d.label}</span>
                               <span style={{ opacity: 0.6 }}>×</span>
                             </div>
@@ -339,12 +339,13 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                                 type="number"
                                 min="0"
                                 className="denom-input"
+                                style={{ fontSize: '0.8rem', padding: '0.2rem' }}
                                 placeholder="0"
                                 value={count || ''}
                                 onChange={e => handleDenomChange(d.value.toString(), e.target.value)}
                               />
                             </div>
-                            <div className="denom-total-sub font-mono">
+                            <div className="denom-total-sub font-mono" style={{ fontSize: '0.675rem' }}>
                               {subTotal > 0 ? formatCurrency(subTotal, config.currency) : '—'}
                             </div>
                           </div>
@@ -357,16 +358,16 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '0.65rem 0.85rem',
+                        padding: '0.45rem 0.65rem',
                         background: '#fffbeb',
-                        borderRadius: '6px',
+                        borderRadius: '5px',
                         border: '1px solid #fde68a',
                         fontWeight: 700,
-                        fontSize: '0.9rem',
+                        fontSize: '0.8rem',
                       }}
                     >
                       <span>Physical Cash Total:</span>
-                      <span className="font-mono" style={{ fontSize: '1.25rem', color: '#d97706', fontWeight: 800 }}>
+                      <span className="font-mono" style={{ fontSize: '1.05rem', color: '#d97706', fontWeight: 800 }}>
                         {formatCurrency(denomTotal, config.currency)}
                       </span>
                     </div>
@@ -376,7 +377,7 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                     <input
                       type="number"
                       className="form-input font-mono"
-                      style={{ fontSize: '1.35rem', fontWeight: 800, padding: '0.65rem 0.85rem' }}
+                      style={{ fontSize: '1.15rem', fontWeight: 800, padding: '0.45rem 0.65rem' }}
                       placeholder="Enter counted physical cash..."
                       value={manualCashInput}
                       onChange={e => setManualCashInput(e.target.value)}
@@ -385,26 +386,26 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 )}
               </div>
 
-              {/* Step 2: Online Bank Statement Balance & Excel Auto-Reconcile (ALWAYS VISIBLE) */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>
-                  📱 Step 2: Online / UPI Statement Total ({selectedDate}):
+              {/* Step 2: Online Bank Statement Balance & Excel Auto-Reconcile */}
+              <div style={{ marginBottom: '0.65rem' }}>
+                <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.3rem' }}>
+                  📱 Online / UPI Statement Total ({selectedDate}):
                 </label>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.45rem' }}>
                   <input
                     type="number"
                     step="any"
                     className="form-input font-mono"
-                    style={{ fontSize: '1.2rem', fontWeight: 800, flex: 1 }}
-                    placeholder="Enter or upload statement to auto-verify..."
+                    style={{ fontSize: '1rem', fontWeight: 800, flex: 1, padding: '0.35rem 0.55rem' }}
+                    placeholder="Enter or upload statement..."
                     value={actualOnline}
                     onChange={e => setActualOnline(e.target.value)}
                   />
                   {actualOnline && (
                     <button
                       type="button"
-                      style={{ fontSize: '0.75rem', color: '#64748b', padding: '0 0.5rem', textDecoration: 'underline' }}
+                      style={{ fontSize: '0.7rem', color: '#64748b', padding: '0 0.4rem', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                       onClick={() => setActualOnline('')}
                     >
                       Clear
@@ -412,8 +413,8 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                   )}
                 </div>
 
-                {/* Always-visible Excel Reconciler & Verifier Box */}
-                <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                {/* Excel Reconciler & Verifier Box */}
+                <div style={{ background: '#f8fafc', padding: '0.65rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                   <ExcelReconciler
                     onVerifiedAmount={amt => {
                       setActualOnline(amt.toString());
@@ -423,25 +424,25 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
               </div>
 
               {/* Step 3: Comparison & Match Status */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <table className="reconcile-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <div style={{ marginBottom: '0.65rem' }}>
+                <table className="reconcile-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.775rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc' }}>
-                      <th style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }}>Account</th>
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }}>Expected</th>
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }}>Actual Count</th>
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }}>Difference</th>
+                      <th style={{ padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }}>Account</th>
+                      <th style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }}>Expected</th>
+                      <th style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }}>Actual Count</th>
+                      <th style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }}>Difference</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>💵 Cash in Drawer</td>
-                      <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(dayBalances.expectedCash, config.currency)}</td>
-                      <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(finalActualCash, config.currency)}</td>
+                      <td style={{ padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>💵 Cash Drawer</td>
+                      <td style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(dayBalances.expectedCash, config.currency)}</td>
+                      <td style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(finalActualCash, config.currency)}</td>
                       <td
                         style={{
                           textAlign: 'right',
-                          padding: '0.5rem 0.75rem',
+                          padding: '0.35rem 0.55rem',
                           borderBottom: '1px solid #e2e8f0',
                           fontWeight: 800,
                           color: cashDiff === 0 ? '#16a34a' : '#dc2626',
@@ -452,13 +453,13 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>📱 Online / Bank</td>
-                      <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(dayBalances.expectedOnline, config.currency)}</td>
-                      <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(finalActualOnline, config.currency)}</td>
+                      <td style={{ padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>📱 Online / Bank</td>
+                      <td style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(dayBalances.expectedOnline, config.currency)}</td>
+                      <td style={{ textAlign: 'right', padding: '0.35rem 0.55rem', borderBottom: '1px solid #e2e8f0' }} className="font-mono">{formatCurrency(finalActualOnline, config.currency)}</td>
                       <td
                         style={{
                           textAlign: 'right',
-                          padding: '0.5rem 0.75rem',
+                          padding: '0.35rem 0.55rem',
                           borderBottom: '1px solid #e2e8f0',
                           fontWeight: 800,
                           color: onlineDiff === 0 ? '#16a34a' : '#dc2626',
@@ -474,55 +475,57 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 {/* Match Status Banner */}
                 <div
                   style={{
-                    padding: '0.85rem 1rem',
-                    borderRadius: '8px',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '6px',
                     background: status === 'balanced' ? '#f0fdf4' : '#fef2f2',
-                    border: `1.5px solid ${status === 'balanced' ? '#bbf7d0' : '#fecaca'}`,
+                    border: `1px solid ${status === 'balanced' ? '#bbf7d0' : '#fecaca'}`,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.65rem',
-                    marginTop: '0.5rem',
+                    gap: '0.45rem',
+                    marginTop: '0.35rem',
                   }}
                 >
                   {status === 'balanced' ? (
-                    <CheckCircle2 size={24} style={{ color: '#16a34a' }} />
+                    <CheckCircle2 size={18} style={{ color: '#16a34a', flexShrink: 0 }} />
                   ) : (
-                    <AlertTriangle size={24} style={{ color: '#dc2626' }} />
+                    <AlertTriangle size={18} style={{ color: '#dc2626', flexShrink: 0 }} />
                   )}
                   <div>
-                    <div style={{ fontSize: '1rem', fontWeight: 800, color: status === 'balanced' ? '#166534' : '#991b1b' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: status === 'balanced' ? '#166534' : '#991b1b' }}>
                       {status === 'balanced'
                         ? '✓ Register Matched Perfectly!'
                         : status === 'shortage'
                         ? `⚠️ Shortage: ${formatCurrency(Math.abs(cashDiff), config.currency)}`
                         : `🟢 Cash Excess: +${formatCurrency(cashDiff, config.currency)}`}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
                       {status === 'balanced'
-                        ? 'Zero mismatch found. All drawer cash and online transactions accounted for.'
-                        : 'Mismatch recorded in closing audit slip.'}
+                        ? 'Zero mismatch found. All cash & online balances match.'
+                        : 'Mismatch will be recorded in closing audit slip.'}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Step 4: Notes & Staff */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem', marginBottom: '0.65rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Closing Notes:</label>
+                  <label className="form-label" style={{ fontSize: '0.725rem', marginBottom: '0.15rem' }}>Closing Notes:</label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. ₹50 loose coins in drawer, night shift handover"
+                    style={{ fontSize: '0.775rem', padding: '0.3rem 0.5rem' }}
+                    placeholder="e.g. ₹50 loose coins in drawer"
                     value={closingNotes}
                     onChange={e => setClosingNotes(e.target.value)}
                   />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Closed By:</label>
+                  <label className="form-label" style={{ fontSize: '0.725rem', marginBottom: '0.15rem' }}>Closed By:</label>
                   <input
                     type="text"
                     className="form-input"
+                    style={{ fontSize: '0.775rem', padding: '0.3rem 0.5rem' }}
                     value={closedBy}
                     onChange={e => setClosedBy(e.target.value)}
                   />
@@ -533,10 +536,10 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
               <button
                 type="button"
                 className="btn-fast-income"
-                style={{ width: '100%', padding: '0.85rem', background: '#2563eb', boxShadow: 'none' }}
+                style={{ width: '100%', padding: '0.65rem', background: '#2563eb', fontSize: '0.85rem', boxShadow: 'none' }}
                 onClick={handleFinalizeClosing}
               >
-                <Lock size={16} />
+                <Lock size={15} />
                 <span>Lock & Finalize Day Closing</span>
               </button>
             </>
@@ -547,32 +550,32 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 id="closing-slip"
                 style={{
                   background: '#ffffff',
-                  padding: '1.25rem',
-                  borderRadius: '8px',
+                  padding: '0.85rem',
+                  borderRadius: '6px',
                   border: '1px solid #e2e8f0',
-                  marginBottom: '1rem',
+                  marginBottom: '0.65rem',
                 }}
               >
-                <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>{config.businessName}</h3>
-                  <p style={{ fontSize: '0.75rem', color: '#64748b' }}>Daily Counter Closing Slip</p>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '0.25rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{config.businessName}</h3>
+                  <p style={{ fontSize: '0.7rem', color: '#64748b' }}>Daily Counter Closing Slip</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '0.15rem', fontSize: '0.7rem', fontWeight: 600, color: '#475569' }}>
                     <span>Date: {selectedDate}</span>
                     <span>•</span>
                     <span>By: {closedBy}</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Actual Physical Cash:</div>
-                    <div className="font-mono" style={{ fontSize: '1.15rem', fontWeight: 800, color: '#d97706' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Actual Physical Cash:</div>
+                    <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 800, color: '#d97706' }}>
                       {formatCurrency(finalActualCash, config.currency)}
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Actual Online/Bank:</div>
-                    <div className="font-mono" style={{ fontSize: '1.15rem', fontWeight: 800, color: '#2563eb' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Actual Online/Bank:</div>
+                    <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 800, color: '#2563eb' }}>
                       {formatCurrency(finalActualOnline, config.currency)}
                     </div>
                   </div>
@@ -580,22 +583,22 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
 
                 <div
                   style={{
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '6px',
+                    padding: '0.45rem 0.65rem',
+                    borderRadius: '5px',
                     background: status === 'balanced' ? '#f0fdf4' : '#fef2f2',
                     border: `1px solid ${status === 'balanced' ? '#bbf7d0' : '#fecaca'}`,
-                    marginBottom: '0.75rem',
+                    marginBottom: '0.5rem',
                   }}
                 >
-                  <div style={{ fontWeight: 800, fontSize: '0.875rem', color: status === 'balanced' ? '#166534' : '#991b1b' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: status === 'balanced' ? '#166534' : '#991b1b' }}>
                     {status === 'balanced' ? '✓ Perfectly Balanced (₹0 diff)' : `⚠️ Cash Shortage: ${formatCurrency(cashDiff, config.currency)}`}
                   </div>
                 </div>
 
                 {/* Cashier breakdown in slip */}
                 {cashierList.length > 0 && (
-                  <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.5rem', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
-                    <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.25rem' }}>Cashiers:</div>
+                  <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.35rem', marginBottom: '0.35rem', fontSize: '0.7rem' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.15rem' }}>Cashiers:</div>
                     {cashierList.map(c => (
                       <div key={c.staffName} style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
                         <span>👤 {c.staffName} ({c.transactionCount} txns):</span>
@@ -605,24 +608,24 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                   </div>
                 )}
 
-                <div style={{ fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.15rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.35rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Total Income Today:</span>
-                    <span className="font-mono" style={{ fontWeight: 700, color: '#16a34a' }}>{formatCurrency(dayBalances.totalIncome, config.currency)}</span>
+                    <span className="font-mono" style={{ fontWeight: 700, color: '#16a34a' }}>+{formatCurrency(dayBalances.totalIncome, config.currency)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Total Expense Today:</span>
-                    <span className="font-mono" style={{ fontWeight: 700, color: '#dc2626' }}>{formatCurrency(dayBalances.totalExpense, config.currency)}</span>
+                    <span className="font-mono" style={{ fontWeight: 700, color: '#dc2626' }}>−{formatCurrency(dayBalances.totalExpense, config.currency)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
-                    <span>Net Daily Movement:</span>
+                    <span>Net Movement:</span>
                     <span className="font-mono">{formatCurrency(dayBalances.netFlow, config.currency)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Share & Print Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   style={{
@@ -630,18 +633,19 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.65rem',
+                    gap: '0.3rem',
+                    padding: '0.55rem',
                     background: '#25D366',
                     color: '#fff',
-                    borderRadius: '6px',
+                    borderRadius: '5px',
                     fontWeight: 700,
-                    fontSize: '0.825rem',
+                    fontSize: '0.775rem',
                     cursor: 'pointer',
+                    border: 'none',
                   }}
                   onClick={generateWhatsAppSummary}
                 >
-                  <Share2 size={15} />
+                  <Share2 size={14} />
                   <span>Copy WhatsApp Slip</span>
                 </button>
 
@@ -651,19 +655,19 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.65rem 0.85rem',
+                    gap: '0.3rem',
+                    padding: '0.55rem 0.75rem',
                     background: '#f8fafc',
                     border: '1px solid #cbd5e1',
                     color: '#0f172a',
-                    borderRadius: '6px',
+                    borderRadius: '5px',
                     fontWeight: 600,
-                    fontSize: '0.825rem',
+                    fontSize: '0.775rem',
                     cursor: 'pointer',
                   }}
                   onClick={() => window.print()}
                 >
-                  <Printer size={15} />
+                  <Printer size={14} />
                   <span>Print</span>
                 </button>
 
@@ -673,13 +677,14 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '0.65rem 1rem',
+                    padding: '0.55rem 0.85rem',
                     background: '#2563eb',
                     color: '#fff',
-                    borderRadius: '6px',
+                    borderRadius: '5px',
                     fontWeight: 700,
-                    fontSize: '0.825rem',
+                    fontSize: '0.775rem',
                     cursor: 'pointer',
+                    border: 'none',
                   }}
                   onClick={closeClosingModal}
                 >

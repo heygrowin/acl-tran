@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   ShieldCheck,
   Store,
@@ -77,7 +78,7 @@ export const LandingScreen: React.FC = () => {
     >
       <div style={{ width: '100%', maxWidth: '440px' }}>
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
           <div
             style={{
               width: '52px',
@@ -102,23 +103,28 @@ export const LandingScreen: React.FC = () => {
             Daily Cash & Transaction Management System
           </p>
 
-          {/* Cloud Status Pill */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.2rem 0.65rem',
-              borderRadius: '20px',
-              background: isCloudConnected ? '#f0fdf4' : '#fffbeb',
-              border: `1px solid ${isCloudConnected ? '#bbf7d0' : '#fde68a'}`,
-              fontSize: '0.675rem',
-              fontWeight: 700,
-              color: isCloudConnected ? '#166534' : '#b45309',
-            }}
-          >
-            <Cloud size={12} />
-            <span>{isCloudConnected ? '🟢 Firebase Cloud Sync Active (acl-tran)' : '🟡 Local Mode (Reconnecting)'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {/* Cloud Status Pill */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.2rem 0.65rem',
+                borderRadius: '20px',
+                background: isCloudConnected ? '#f0fdf4' : '#fffbeb',
+                border: `1px solid ${isCloudConnected ? '#bbf7d0' : '#fde68a'}`,
+                fontSize: '0.675rem',
+                fontWeight: 700,
+                color: isCloudConnected ? '#166534' : '#b45309',
+              }}
+            >
+              <Cloud size={12} />
+              <span>{isCloudConnected ? '🟢 Cloud Sync Active' : '🟡 Local Mode'}</span>
+            </div>
+
+            {/* PWA Install Button on Landing */}
+            <PWAInstallButton />
           </div>
         </div>
 
@@ -237,7 +243,7 @@ export const LandingScreen: React.FC = () => {
                         fontWeight: 600,
                         border: error ? '1.5px solid #dc2626' : '1px solid #cbd5e1',
                       }}
-                      placeholder="admin@123"
+                      placeholder="Enter admin password"
                       value={password}
                       onChange={e => {
                         setPassword(e.target.value);
@@ -292,7 +298,7 @@ export const LandingScreen: React.FC = () => {
                     }}
                   >
                     <AlertCircle size={14} />
-                    <span>Incorrect password. Default: <code>admin@123</code></span>
+                    <span>Incorrect admin password. Please try again.</span>
                   </div>
                 )}
 
@@ -411,7 +417,7 @@ export const LandingScreen: React.FC = () => {
                             fontWeight: 600,
                             border: error ? '1.5px solid #dc2626' : '1px solid #cbd5e1',
                           }}
-                          placeholder={currentCounter?.password ? 'Enter password' : 'P@counter'}
+                          placeholder="Enter counter password"
                           value={password}
                           onChange={e => {
                             setPassword(e.target.value);
@@ -466,7 +472,7 @@ export const LandingScreen: React.FC = () => {
                         }}
                       >
                         <AlertCircle size={14} />
-                        <span>Incorrect password. Default: <code>P@counter</code></span>
+                        <span>Incorrect password. Please try again.</span>
                       </div>
                     )}
 
@@ -489,27 +495,6 @@ export const LandingScreen: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Default Passwords Quick Card */}
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '0.75rem 1rem',
-            background: '#ffffff',
-            borderRadius: '10px',
-            border: '1px solid #e2e8f0',
-            fontSize: '0.75rem',
-            color: '#64748b',
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '1.25rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span>🛡️ Admin: <strong>admin@123</strong></span>
-          <span>•</span>
-          <span>👤 Counter: <strong>P@counter</strong></span>
         </div>
       </div>
     </div>

@@ -127,11 +127,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       return;
     }
 
-    const finalCategory = category.trim() || (type === 'income' ? 'Income' : 'Expense');
+    const typedCategory = category.trim();
+    const finalCategory = typedCategory || (type === 'income' ? 'Income' : 'Expense');
 
-    // Auto-save new category into config list if new
-    if (finalCategory) {
-      addCategory(type, finalCategory);
+    // Only auto-save to category presets if user explicitly typed a custom category name
+    if (typedCategory && typedCategory.toLowerCase() !== 'income' && typedCategory.toLowerCase() !== 'expense') {
+      addCategory(type, typedCategory);
     }
 
     if (editingTransaction) {
@@ -169,64 +170,68 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content animate-scale-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div className="modal-content animate-scale-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
         {/* Modal Header */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '1rem 1.25rem',
+            padding: '0.65rem 0.85rem',
             borderBottom: '1px solid var(--border-color)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.25rem' }}>{type === 'income' ? '🟢' : '🔴'}</span>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-              {editingTransaction ? 'Edit Entry' : type === 'income' ? '+ Income' : '− Expense'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '1.1rem' }}>{type === 'income' ? '🟢' : '🔴'}</span>
+            <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+              {editingTransaction ? 'Edit Entry' : type === 'income' ? '+ Income Entry' : '− Expense Entry'}
             </h2>
           </div>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={17} />
+          <button className="icon-btn" style={{ width: '26px', height: '26px' }} onClick={onClose}>
+            <X size={15} />
           </button>
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.15rem' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '0.75rem 0.85rem' }}>
           {/* 1. Type Switcher: Income (First) vs Expense (Second) */}
-          <div className="entry-type-toggle" style={{ marginBottom: '0.85rem' }}>
+          <div className="entry-type-toggle" style={{ marginBottom: '0.6rem', padding: '0.2rem' }}>
             <button
               type="button"
               className={`type-toggle-btn income ${type === 'income' ? 'active' : ''}`}
+              style={{ padding: '0.5rem', fontSize: '0.85rem' }}
               onClick={() => handleTypeChange('income')}
             >
-              <PlusCircle size={17} />
+              <PlusCircle size={15} />
               <span>+ Income</span>
             </button>
             <button
               type="button"
               className={`type-toggle-btn expense ${type === 'expense' ? 'active' : ''}`}
+              style={{ padding: '0.5rem', fontSize: '0.85rem' }}
               onClick={() => handleTypeChange('expense')}
             >
-              <MinusCircle size={17} />
+              <MinusCircle size={15} />
               <span>− Expense</span>
             </button>
           </div>
 
           {/* 2. Customer Name, Mobile Number & Note (TOP) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.6rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Customer / Party Name (Optional)"
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                placeholder="Party Name (Optional)"
                 value={customerName}
                 onChange={e => setCustomerName(e.target.value)}
               />
               <input
                 type="tel"
                 className="form-input"
-                placeholder="Mobile Number (Optional)"
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+                placeholder="Mobile (Optional)"
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
               />
@@ -235,22 +240,24 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             <input
               type="text"
               className="form-input"
-              placeholder="Note / Description (e.g. Tea, Courier, Order #101)"
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
+              placeholder="Note / Description (e.g. Tea, Order #101)"
               value={note}
               onChange={e => setNote(e.target.value)}
             />
           </div>
 
           {/* 3. Amount Input */}
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div className="giant-amount-wrap">
-              <span className="giant-currency-symbol">{config.currency}</span>
+          <div style={{ marginBottom: '0.6rem' }}>
+            <div className="giant-amount-wrap" style={{ padding: '0.3rem 0.65rem', marginBottom: '0.4rem' }}>
+              <span className="giant-currency-symbol" style={{ fontSize: '1.4rem' }}>{config.currency}</span>
               <input
                 ref={amountInputRef}
                 type="number"
                 step="any"
                 placeholder="0"
                 className="giant-amount-input"
+                style={{ fontSize: '1.6rem' }}
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 required
@@ -258,21 +265,22 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               {amount && (
                 <button
                   type="button"
-                  style={{ color: 'var(--text-muted)', padding: '0.25rem' }}
+                  style={{ color: 'var(--text-muted)', padding: '0.2rem' }}
                   onClick={() => setAmount('')}
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               )}
             </div>
 
             {/* Quick Amount Presets */}
-            <div className="amount-presets-row">
+            <div className="amount-presets-row" style={{ marginBottom: '0.6rem' }}>
               {[100, 200, 500, 1000, 2000, 5000].map(preset => (
                 <button
                   key={preset}
                   type="button"
                   className="preset-chip"
+                  style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
                   onClick={() => handleAddPreset(preset)}
                 >
                   +{formatCurrency(preset, config.currency)}
@@ -282,22 +290,22 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
           </div>
 
           {/* 4. Payment Method Options: Cash, UPI, RTGS */}
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+          <div style={{ marginBottom: '0.6rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
               <button
                 key="cash"
                 type="button"
                 className={`method-chip ${paymentMethod === 'cash' ? 'active' : ''}`}
                 style={{
-                  padding: '0.75rem 0.5rem',
-                  border: paymentMethod === 'cash' ? '2px solid #16a34a' : '1.5px solid #e2e8f0',
+                  padding: '0.45rem 0.35rem',
+                  border: paymentMethod === 'cash' ? '2px solid #16a34a' : '1px solid #e2e8f0',
                   background: paymentMethod === 'cash' ? '#f0fdf4' : '#ffffff',
                   color: paymentMethod === 'cash' ? '#16a34a' : '#475569',
                 }}
                 onClick={() => setPaymentMethod('cash')}
               >
-                <Banknote size={22} style={{ color: '#16a34a' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>Cash</span>
+                <Banknote size={17} style={{ color: '#16a34a' }} />
+                <span style={{ fontSize: '0.775rem', fontWeight: 800 }}>Cash</span>
               </button>
 
               <button
@@ -305,15 +313,15 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 type="button"
                 className={`method-chip ${paymentMethod === 'upi' ? 'active' : ''}`}
                 style={{
-                  padding: '0.75rem 0.5rem',
-                  border: paymentMethod === 'upi' ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
+                  padding: '0.45rem 0.35rem',
+                  border: paymentMethod === 'upi' ? '2px solid #2563eb' : '1px solid #e2e8f0',
                   background: paymentMethod === 'upi' ? '#eff6ff' : '#ffffff',
                   color: paymentMethod === 'upi' ? '#2563eb' : '#475569',
                 }}
                 onClick={() => setPaymentMethod('upi')}
               >
-                <QrCode size={22} style={{ color: '#2563eb' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>UPI</span>
+                <QrCode size={17} style={{ color: '#2563eb' }} />
+                <span style={{ fontSize: '0.775rem', fontWeight: 800 }}>UPI</span>
               </button>
 
               <button
@@ -321,25 +329,26 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 type="button"
                 className={`method-chip ${paymentMethod === 'rtgs' ? 'active' : ''}`}
                 style={{
-                  padding: '0.75rem 0.5rem',
-                  border: paymentMethod === 'rtgs' ? '2px solid #7c3aed' : '1.5px solid #e2e8f0',
+                  padding: '0.45rem 0.35rem',
+                  border: paymentMethod === 'rtgs' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
                   background: paymentMethod === 'rtgs' ? '#f5f3ff' : '#ffffff',
                   color: paymentMethod === 'rtgs' ? '#7c3aed' : '#475569',
                 }}
                 onClick={() => setPaymentMethod('rtgs')}
               >
-                <Building size={22} style={{ color: '#7c3aed' }} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 800 }}>RTGS</span>
+                <Building size={17} style={{ color: '#7c3aed' }} />
+                <span style={{ fontSize: '0.775rem', fontWeight: 800 }}>RTGS</span>
               </button>
             </div>
           </div>
 
           {/* 5. Dynamic Auto-Suggest Category Box */}
-          <div ref={categoryContainerRef} style={{ position: 'relative', marginBottom: '1.15rem' }}>
+          <div ref={categoryContainerRef} style={{ position: 'relative', marginBottom: '0.75rem' }}>
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
                 className="form-input"
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
                 placeholder="Category (type or select e.g. Tea, Order, Fuel)"
                 value={category}
                 onChange={e => {
@@ -352,14 +361,14 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 type="button"
                 style={{
                   position: 'absolute',
-                  right: '0.75rem',
+                  right: '0.65rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   color: '#94a3b8',
                 }}
                 onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
               >
-                <ChevronDown size={16} />
+                <ChevronDown size={14} />
               </button>
             </div>
 
@@ -371,13 +380,13 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   top: '100%',
                   left: 0,
                   right: 0,
-                  marginTop: '0.25rem',
+                  marginTop: '0.2rem',
                   background: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
                   zIndex: 50,
-                  maxHeight: '180px',
+                  maxHeight: '160px',
                   overflowY: 'auto',
                 }}
               >
@@ -385,8 +394,8 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   <div
                     key={cat}
                     style={{
-                      padding: '0.55rem 0.85rem',
-                      fontSize: '0.85rem',
+                      padding: '0.45rem 0.75rem',
+                      fontSize: '0.8rem',
                       fontWeight: 600,
                       color: '#0f172a',
                       cursor: 'pointer',
@@ -407,48 +416,42 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 {category.trim() && !isExactCategoryMatch && (
                   <div
                     style={{
-                      padding: '0.55rem 0.85rem',
-                      fontSize: '0.85rem',
+                      padding: '0.45rem 0.75rem',
+                      fontSize: '0.8rem',
                       fontWeight: 700,
                       color: '#2563eb',
                       cursor: 'pointer',
                       background: '#eff6ff',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.4rem',
+                      gap: '0.35rem',
                     }}
                     onClick={() => {
                       setIsCategoryDropdownOpen(false);
                     }}
                   >
-                    <Plus size={14} />
-                    <span>Create new category "{category.trim()}"</span>
-                  </div>
-                )}
-
-                {filteredCategories.length === 0 && !category.trim() && (
-                  <div style={{ padding: '0.75rem', fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center' }}>
-                    Type to add or search category
+                    <Plus size={13} />
+                    <span>Create new "{category.trim()}"</span>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* 6. Big Save Button */}
+          {/* 6. Save Button */}
           <button
             type="submit"
             className={`btn-save-transaction ${type}`}
             style={{
               width: '100%',
-              padding: '0.85rem',
-              fontSize: '1rem',
+              padding: '0.65rem',
+              fontSize: '0.925rem',
               fontWeight: 800,
               background: type === 'income' ? '#16a34a' : '#dc2626',
               boxShadow: 'none',
             }}
           >
-            <Check size={18} />
+            <Check size={16} />
             <span>SAVE ({formatCurrency(parseFloat(amount) || 0, config.currency)})</span>
           </button>
         </form>

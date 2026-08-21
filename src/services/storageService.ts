@@ -25,6 +25,7 @@ const STORAGE_KEYS = {
   LOANS: 'acl_counter_loans_v5',
   OPENING_BALANCES: 'acl_counter_opening_balances_v5',
   CURRENT_ROLE: 'acl_counter_current_role_v5',
+  SESSION: 'acl_counter_session_v5',
 };
 
 // Payment methods: Cash, UPI, RTGS
@@ -162,6 +163,8 @@ export class StorageService {
         return {
           ...DEFAULT_CONFIG,
           ...parsed,
+          incomeCategories: Array.isArray(parsed.incomeCategories) ? parsed.incomeCategories : DEFAULT_INCOME_CATEGORIES,
+          expenseCategories: Array.isArray(parsed.expenseCategories) ? parsed.expenseCategories : DEFAULT_EXPENSE_CATEGORIES,
           counters: (parsed.counters && parsed.counters.length > 0) ? parsed.counters : DEFAULT_COUNTERS,
         };
       }
@@ -174,6 +177,38 @@ export class StorageService {
   public saveConfig(config: BusinessConfig): void {
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
     saveConfigToCloud(config);
+  }
+
+  // --- SESSION PERSISTENCE ---
+  public getSession(): { role: 'admin' | 'employee'; member: string } | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.role === 'admin' || parsed.role === 'employee')) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to get session', e);
+    }
+    return null;
+  }
+
+  public saveSession(role: 'admin' | 'employee', member: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify({ role, member }));
+    } catch (e) {
+      console.error('Failed to save session', e);
+    }
+  }
+
+  public clearSession(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+    } catch (e) {
+      console.error('Failed to clear session', e);
+    }
   }
 
   // --- COUNTERS MANAGEMENT ---

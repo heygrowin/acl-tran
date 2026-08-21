@@ -85,9 +85,10 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const initialSession = storage.getSession();
   const [config, setConfigState] = useState<BusinessConfig>(() => storage.getConfig());
-  const [currentScreen, setCurrentScreen] = useState<CurrentScreen>('landing');
-  const [selectedMember, setSelectedMember] = useState<string>('Counter 1');
+  const [currentScreen, setCurrentScreen] = useState<CurrentScreen>(() => initialSession?.role || 'landing');
+  const [selectedMember, setSelectedMember] = useState<string>(() => initialSession?.member || 'Admin / Owner');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
@@ -179,8 +180,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cloudConfig => {
         setIsCloudConnected(true);
         if (cloudConfig) {
-          localStorage.setItem('acl_counter_config_v5', JSON.stringify(cloudConfig));
-          setConfigState(cloudConfig);
+          const localConfig = storage.getConfig();
+          const mergedConfig: BusinessConfig = {
+            ...localConfig,
+            ...cloudConfig,
+            incomeCategories: Array.isArray(cloudConfig.incomeCategories) ? cloudConfig.incomeCategories : localConfig.incomeCategories,
+            expenseCategories: Array.isArray(cloudConfig.expenseCategories) ? cloudConfig.expenseCategories : localConfig.expenseCategories,
+          };
+          localStorage.setItem('acl_counter_config_v5', JSON.stringify(mergedConfig));
+          setConfigState(mergedConfig);
         }
       },
       () => setIsCloudConnected(false)
@@ -234,6 +242,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (password === (config.adminPassword || 'admin@123')) {
         setSelectedMember('Admin / Owner');
         setCurrentScreen('admin');
+        storage.saveSession('admin', 'Admin / Owner');
         showToast('Logged in as Admin');
         return true;
       }
@@ -242,9 +251,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const expectedPassword = matchedCounter?.password || config.employeePassword || 'P@counter';
       
       if (password === expectedPassword) {
-        setSelectedMember(matchedCounter ? matchedCounter.name : member);
+        const staffName = matchedCounter ? matchedCounter.name : member;
+        setSelectedMember(staffName);
         setCurrentScreen('employee');
-        showToast(`Logged in as ${member}`);
+        storage.saveSession('employee', staffName);
+        showToast(`Logged in as ${staffName}`);
         return true;
       }
     }
@@ -254,6 +265,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutToLanding = () => {
+    storage.clearSession();
     setCurrentScreen('landing');
     showToast('Returned to Login Screen', 'info');
   };

@@ -109,13 +109,13 @@ export const LoanManager: React.FC = () => {
 
   return (
     <div className="animate-fade-in">
-      {/* Top Summary Bar */}
+      {/* 3 Top Metric Cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '0.65rem',
-          marginBottom: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '0.45rem',
+          marginBottom: '0.55rem',
         }}
       >
         <div
@@ -123,14 +123,14 @@ export const LoanManager: React.FC = () => {
           style={{
             background: '#ffffff',
             borderLeft: '3.5px solid #d97706',
-            padding: '0.75rem 1rem',
+            padding: '0.55rem 0.75rem',
           }}
         >
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Total Pending to Receive</div>
-          <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#d97706', margin: '0.2rem 0' }}>
+          <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Total Pending to Receive</div>
+          <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d97706', margin: '0.1rem 0' }}>
             {formatCurrency(totalPendingLoan, config.currency)}
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
             {loans.filter(l => l.pendingAmount > 0).length} active borrowers
           </div>
         </div>
@@ -140,14 +140,14 @@ export const LoanManager: React.FC = () => {
           style={{
             background: '#ffffff',
             borderLeft: '3.5px solid #2563eb',
-            padding: '0.75rem 1rem',
+            padding: '0.55rem 0.75rem',
           }}
         >
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Total Money Lent</div>
-          <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2563eb', margin: '0.2rem 0' }}>
+          <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Total Money Lent</div>
+          <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#2563eb', margin: '0.1rem 0' }}>
             {formatCurrency(totalLentAll, config.currency)}
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
             Total loans given out
           </div>
         </div>
@@ -157,14 +157,14 @@ export const LoanManager: React.FC = () => {
           style={{
             background: '#ffffff',
             borderLeft: '3.5px solid #16a34a',
-            padding: '0.75rem 1rem',
+            padding: '0.55rem 0.75rem',
           }}
         >
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Total Repaid / Received</div>
-          <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16a34a', margin: '0.2rem 0' }}>
+          <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Total Repaid / Received</div>
+          <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#16a34a', margin: '0.1rem 0' }}>
             {formatCurrency(totalRepaidAll, config.currency)}
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
             Money returned back
           </div>
         </div>
@@ -177,18 +177,18 @@ export const LoanManager: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '0.85rem',
+          marginBottom: '0.55rem',
           flexWrap: 'wrap',
-          gap: '0.6rem',
-          padding: '0.75rem 1rem',
+          gap: '0.4rem',
+          padding: '0.45rem 0.65rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '200px' }}>
-          <Search size={15} style={{ color: '#94a3b8' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: '160px' }}>
+          <Search size={14} style={{ color: '#94a3b8' }} />
           <input
             type="text"
             className="form-input"
-            style={{ width: '100%', fontSize: '0.825rem', padding: '0.4rem 0.65rem' }}
+            style={{ width: '100%', fontSize: '0.775rem', padding: '0.3rem 0.55rem' }}
             placeholder="Search borrower name, phone, notes..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
@@ -198,20 +198,20 @@ export const LoanManager: React.FC = () => {
         <button
           type="button"
           className="btn-fast-income"
-          style={{ padding: '0.55rem 1rem', fontSize: '0.825rem', background: '#d97706', boxShadow: 'none' }}
+          style={{ padding: '0.4rem 0.75rem', fontSize: '0.775rem', background: '#d97706', boxShadow: 'none' }}
           onClick={handleOpenGive}
         >
-          <HandCoins size={16} />
-          <span>+ Give Loan / Lend Money</span>
+          <HandCoins size={14} />
+          <span>+ Give Loan</span>
         </button>
       </div>
 
       {/* Loans List */}
       {filteredLoans.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#64748b' }}>
-          <HandCoins size={36} style={{ color: '#cbd5e1', marginBottom: '0.5rem' }} />
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>No Loan Records</h3>
-          <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '1.75rem 1rem', color: '#64748b' }}>
+          <HandCoins size={28} style={{ color: '#cbd5e1', marginBottom: '0.35rem' }} />
+          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>No Loan Records</h3>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.15rem' }}>
             Give a loan to someone to track outstanding amounts and repayments.
           </p>
         </div>
@@ -219,8 +219,8 @@ export const LoanManager: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '0.75rem',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: '0.55rem',
           }}
         >
           {filteredLoans.map(loan => {
@@ -233,22 +233,22 @@ export const LoanManager: React.FC = () => {
                 style={{
                   background: '#ffffff',
                   border: isFullyPaid ? '1px solid #e2e8f0' : '1.5px solid #fde68a',
-                  padding: '1rem',
+                  padding: '0.65rem 0.85rem',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  gap: '0.75rem',
+                  gap: '0.5rem',
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>
                         {loan.borrowerName}
                       </div>
                       {loan.borrowerPhone && (
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.1rem' }}>
-                          <Phone size={11} />
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.1rem' }}>
+                          <Phone size={10} />
                           <span>{loan.borrowerPhone}</span>
                         </div>
                       )}
@@ -256,14 +256,14 @@ export const LoanManager: React.FC = () => {
 
                     <span
                       className={`badge ${isFullyPaid ? 'badge-income' : 'badge-cash'}`}
-                      style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}
+                      style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}
                     >
-                      {isFullyPaid ? '✓ Fully Repaid' : 'Pending'}
+                      {isFullyPaid ? '✓ Repaid' : 'Pending'}
                     </span>
                   </div>
 
                   {loan.notes && (
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '0.35rem 0.5rem', borderRadius: '4px', marginBottom: '0.6rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', background: '#f8fafc', padding: '0.25rem 0.4rem', borderRadius: '4px', marginBottom: '0.4rem' }}>
                       "{loan.notes}"
                     </div>
                   )}
@@ -273,23 +273,23 @@ export const LoanManager: React.FC = () => {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: '1fr 1fr',
-                      gap: '0.4rem',
+                      gap: '0.3rem',
                       background: isFullyPaid ? '#f8fafc' : '#fffbeb',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '6px',
+                      padding: '0.45rem 0.6rem',
+                      borderRadius: '5px',
                       border: isFullyPaid ? '1px solid #e2e8f0' : '1px solid #fde68a',
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: '0.675rem', color: '#64748b' }}>Pending Due:</div>
-                      <div className="font-mono" style={{ fontSize: '1.15rem', fontWeight: 800, color: isFullyPaid ? '#16a34a' : '#d97706' }}>
+                      <div style={{ fontSize: '0.625rem', color: '#64748b' }}>Pending Due:</div>
+                      <div className="font-mono" style={{ fontSize: '1.05rem', fontWeight: 800, color: isFullyPaid ? '#16a34a' : '#d97706' }}>
                         {formatCurrency(loan.pendingAmount, config.currency)}
                       </div>
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.675rem', color: '#64748b' }}>Lent / Repaid:</div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>
+                      <div style={{ fontSize: '0.625rem', color: '#64748b' }}>Lent / Repaid:</div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0f172a' }}>
                         {formatCurrency(loan.totalLent, config.currency)} / {formatCurrency(loan.totalRepaid, config.currency)}
                       </div>
                     </div>
@@ -297,27 +297,27 @@ export const LoanManager: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.65rem' }}>
-                  <div style={{ display: 'flex', gap: '0.3rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.45rem' }}>
+                  <div style={{ display: 'flex', gap: '0.25rem' }}>
                     {loan.borrowerPhone && (
                       <button
                         type="button"
                         className="icon-btn"
-                        style={{ width: '28px', height: '28px', background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
+                        style={{ width: '24px', height: '24px', background: '#f0fdf4', color: '#16a34a', borderColor: '#bbf7d0' }}
                         onClick={() => handleWhatsApp(loan)}
                         title="Send WhatsApp Reminder"
                       >
-                        <MessageCircle size={14} />
+                        <MessageCircle size={12} />
                       </button>
                     )}
                     <button
                       type="button"
                       className="icon-btn"
-                      style={{ width: '28px', height: '28px', color: '#dc2626' }}
+                      style={{ width: '24px', height: '24px', color: '#dc2626' }}
                       onClick={() => handleDelete(loan)}
                       title="Delete Record"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={11} />
                     </button>
                   </div>
 
@@ -325,24 +325,25 @@ export const LoanManager: React.FC = () => {
                     <button
                       type="button"
                       style={{
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '6px',
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '5px',
                         background: '#16a34a',
                         color: '#ffffff',
-                        fontSize: '0.775rem',
+                        fontSize: '0.725rem',
                         fontWeight: 700,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.3rem',
+                        gap: '0.25rem',
                         cursor: 'pointer',
+                        border: 'none',
                       }}
                       onClick={() => handleOpenRepay(loan)}
                     >
-                      <ArrowDownLeft size={14} />
+                      <ArrowDownLeft size={13} />
                       <span>Receive Repayment</span>
                     </button>
                   ) : (
-                    <span style={{ fontSize: '0.725rem', color: '#16a34a', fontWeight: 700 }}>
+                    <span style={{ fontSize: '0.675rem', color: '#16a34a', fontWeight: 700 }}>
                       ✓ All Clear
                     </span>
                   )}

@@ -57,21 +57,21 @@ export const ReportsAnalytics: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '1.25rem',
+          marginBottom: '0.65rem',
           flexWrap: 'wrap',
-          gap: '0.75rem',
+          gap: '0.45rem',
         }}
       >
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>Business Reports & Analytics</h2>
-        <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '0.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 800 }}>Business Reports & Analytics</h2>
+        <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '0.15rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
           {(['today', '7days', '30days', 'all'] as const).map(range => (
             <button
               key={range}
               className={`nav-tab-btn ${timeRange === range ? 'active' : ''}`}
-              style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem' }}
               onClick={() => setTimeRange(range)}
             >
-              {range === 'today' ? 'Today' : range === '7days' ? 'Last 7 Days' : range === '30days' ? 'Last 30 Days' : 'All Time'}
+              {range === 'today' ? 'Today' : range === '7days' ? '7 Days' : range === '30days' ? '30 Days' : 'All Time'}
             </button>
           ))}
         </div>
@@ -81,80 +81,80 @@ export const ReportsAnalytics: React.FC = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1.5rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: '0.45rem',
+          marginBottom: '0.65rem',
         }}
       >
-        <div className="card" style={{ borderLeft: '4px solid var(--color-income)' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+        <div className="card" style={{ borderLeft: '3.5px solid var(--color-income)', padding: '0.55rem 0.75rem' }}>
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
             Total Inflow (Income)
           </div>
-          <div className="font-mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-income)', margin: '0.35rem 0' }}>
+          <div className="font-mono" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-income)', margin: '0.15rem 0' }}>
             {formatCurrency(totalIncome, config.currency)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            {filteredTxs.filter(t => t.type === 'income').length} income transactions
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-secondary)' }}>
+            {filteredTxs.filter(t => t.type === 'income').length} income txns
           </div>
         </div>
 
-        <div className="card" style={{ borderLeft: '4px solid var(--color-expense)' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-            Total Outflow (Expenses)
+        <div className="card" style={{ borderLeft: '3.5px solid var(--color-expense)', padding: '0.55rem 0.75rem' }}>
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+            Total Outflow (Expense)
           </div>
-          <div className="font-mono" style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-expense)', margin: '0.35rem 0' }}>
+          <div className="font-mono" style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-expense)', margin: '0.15rem 0' }}>
             {formatCurrency(totalExpense, config.currency)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            {filteredTxs.filter(t => t.type === 'expense').length} expense transactions
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-secondary)' }}>
+            {filteredTxs.filter(t => t.type === 'expense').length} expense txns
           </div>
         </div>
 
-        <div className="card" style={{ borderLeft: `4px solid ${netFlow >= 0 ? 'var(--color-income)' : 'var(--color-expense)'}` }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+        <div className="card" style={{ borderLeft: `3.5px solid ${netFlow >= 0 ? 'var(--color-income)' : 'var(--color-expense)'}`, padding: '0.55rem 0.75rem' }}>
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
             Net Cash Flow
           </div>
           <div
             className="font-mono"
             style={{
-              fontSize: '1.8rem',
+              fontSize: '1.35rem',
               fontWeight: 800,
               color: netFlow >= 0 ? 'var(--color-income)' : 'var(--color-expense)',
-              margin: '0.35rem 0',
+              margin: '0.15rem 0',
             }}
           >
             {formatCurrency(netFlow, config.currency)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            {netFlow >= 0 ? '✓ Net Positive Cashflow' : '⚠️ Net Negative Cashflow'}
+          <div style={{ fontSize: '0.675rem', color: 'var(--text-secondary)' }}>
+            {netFlow >= 0 ? '✓ Net Positive' : '⚠️ Net Negative'}
           </div>
         </div>
       </div>
 
       {/* Breakdowns Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.55rem', marginBottom: '0.65rem' }}>
         {/* Category Expense Breakdown */}
-        <div className="card">
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <PieChart size={16} style={{ color: 'var(--color-expense)' }} />
-            <span>Expense Breakdown by Category</span>
+        <div className="card" style={{ padding: '0.65rem 0.85rem' }}>
+          <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <PieChart size={14} style={{ color: 'var(--color-expense)' }} />
+            <span>Expense by Category</span>
           </h3>
 
           {sortedExpenses.length === 0 ? (
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No expenses recorded in this period.</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No expenses recorded in this period.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
               {sortedExpenses.map(([cat, amt]) => {
                 const pct = totalExpense > 0 ? Math.round((amt / totalExpense) * 100) : 0;
                 return (
                   <div key={cat}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.825rem', marginBottom: '0.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.15rem' }}>
                       <span style={{ fontWeight: 600 }}>{cat}</span>
                       <span className="font-mono" style={{ fontWeight: 700 }}>
                         {formatCurrency(amt, config.currency)} ({pct}%)
                       </span>
                     </div>
-                    <div style={{ height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '5px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${pct}%`, background: 'var(--color-expense)', borderRadius: '3px' }} />
                     </div>
                   </div>
@@ -165,18 +165,18 @@ export const ReportsAnalytics: React.FC = () => {
         </div>
 
         {/* Payment Method Distribution */}
-        <div className="card">
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Wallet size={16} style={{ color: 'var(--color-accent)' }} />
-            <span>Movement by Payment Mode</span>
+        <div className="card" style={{ padding: '0.65rem 0.85rem' }}>
+          <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Wallet size={14} style={{ color: 'var(--color-accent)' }} />
+            <span>Movement by Mode</span>
           </h3>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
             {Object.entries(methodTotals).map(([method, vals]) => (
               <div
                 key={method}
                 style={{
-                  padding: '0.65rem 0.85rem',
+                  padding: '0.45rem 0.65rem',
                   background: 'var(--bg-input)',
                   borderRadius: 'var(--radius-sm)',
                   display: 'flex',
@@ -184,8 +184,8 @@ export const ReportsAnalytics: React.FC = () => {
                   justifyContent: 'space-between',
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{method}</div>
-                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.775rem' }}>{method}</div>
+                <div style={{ display: 'flex', gap: '0.65rem', fontSize: '0.75rem' }}>
                   <span style={{ color: 'var(--color-income)' }} className="font-mono">
                     +{formatCurrency(vals.income, config.currency)}
                   </span>
@@ -200,14 +200,14 @@ export const ReportsAnalytics: React.FC = () => {
       </div>
 
       {/* Daily Closings Audit Log */}
-      <div className="card">
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Clock size={16} style={{ color: 'var(--color-online)' }} />
-          <span>Historical Daily Closings & Reconciliation Log</span>
+      <div className="card" style={{ padding: '0.65rem 0.85rem' }}>
+        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.55rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <Clock size={14} style={{ color: 'var(--color-online)' }} />
+          <span>Historical Closings & Reconciliation Log</span>
         </h3>
 
         {closings.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
             No daily closings recorded yet. Perform a Day Closing to see mismatch audits.
           </div>
         ) : (
@@ -246,7 +246,7 @@ export const ReportsAnalytics: React.FC = () => {
                         {c.status === 'balanced' ? '✓ Matched' : c.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{c.notes || '—'}</td>
+                    <td style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{c.notes || '—'}</td>
                   </tr>
                 ))}
               </tbody>

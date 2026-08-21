@@ -7,8 +7,6 @@ import {
   AlertTriangle,
   HelpCircle,
   ArrowRight,
-  Wallet,
-  Globe,
   Sparkles
 } from 'lucide-react';
 import { formatCurrency } from '../services/storageService';
@@ -17,7 +15,7 @@ export const HeroStats: React.FC = () => {
   const { dayBalances, config, openClosingModal } = useApp();
   const closing = dayBalances.closing;
 
-  // Compute status for question #3
+  // Compute status for closing & reconciliation
   let matchStatus: 'balanced' | 'shortage' | 'excess' | 'pending' = 'pending';
   let matchMessage = 'Closing Pending';
   let diffAmount = 0;
@@ -37,118 +35,166 @@ export const HeroStats: React.FC = () => {
   }
 
   return (
-    <section className="hero-stats-grid">
-      {/* 1. HOW MUCH CAME IN */}
-      <div className="kpi-card income">
-        <div className="kpi-header">
-          <div className="kpi-title-wrap">
-            <span className="kpi-num-badge">1</span>
-            <span className="kpi-label">How much came in today?</span>
+    <section className="hero-compact-section" style={{ marginBottom: '0.5rem' }}>
+      {/* Sleek Apple-style 2-Column Unified Card: Left = Income, Right = Expense */}
+      <div
+        className="card"
+        style={{
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          padding: '0.55rem 0.75rem',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '0.65rem',
+          marginBottom: '0.4rem',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+        }}
+      >
+        {/* LEFT: INCOME (+) */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#166534' }}>
+              + Income
+            </span>
+            <TrendingUp size={13} style={{ color: '#16a34a' }} />
           </div>
-          <div style={{ color: 'var(--color-income)' }}>
-            <TrendingUp size={20} />
-          </div>
-        </div>
 
-        <div className="kpi-main-val income font-mono">
-          {formatCurrency(dayBalances.totalIncome, config.currency)}
-        </div>
-
-        <div className="kpi-sub-breakdown">
-          <span className="kpi-pill">
-            <Wallet size={12} style={{ color: 'var(--color-cash)' }} />
-            <span>Cash: {formatCurrency(dayBalances.cashIncome, config.currency)}</span>
-          </span>
-          <span className="kpi-pill">
-            <Globe size={12} style={{ color: 'var(--color-online)' }} />
-            <span>Online: {formatCurrency(dayBalances.onlineIncome, config.currency)}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* 2. HOW MUCH WENT OUT */}
-      <div className="kpi-card expense">
-        <div className="kpi-header">
-          <div className="kpi-title-wrap">
-            <span className="kpi-num-badge">2</span>
-            <span className="kpi-label">How much went out today?</span>
-          </div>
-          <div style={{ color: 'var(--color-expense)' }}>
-            <TrendingDown size={20} />
-          </div>
-        </div>
-
-        <div className="kpi-main-val expense font-mono">
-          {formatCurrency(dayBalances.totalExpense, config.currency)}
-        </div>
-
-        <div className="kpi-sub-breakdown">
-          <span className="kpi-pill">
-            <Wallet size={12} style={{ color: 'var(--color-cash)' }} />
-            <span>Cash: {formatCurrency(dayBalances.cashExpense, config.currency)}</span>
-          </span>
-          <span className="kpi-pill">
-            <Globe size={12} style={{ color: 'var(--color-online)' }} />
-            <span>Online: {formatCurrency(dayBalances.onlineExpense, config.currency)}</span>
-          </span>
-        </div>
-      </div>
-
-      {/* 3. DOES THE MONEY MATCH? */}
-      <div className={`kpi-card match-${matchStatus}`}>
-        <div className="kpi-header">
-          <div className="kpi-title-wrap">
-            <span className="kpi-num-badge">3</span>
-            <span className="kpi-label">Does the money match?</span>
-          </div>
-          <div>
-            {matchStatus === 'balanced' && <CheckCircle2 size={22} style={{ color: '#10b981' }} />}
-            {matchStatus === 'shortage' && <AlertTriangle size={22} style={{ color: '#ef4444' }} />}
-            {matchStatus === 'excess' && <Sparkles size={22} style={{ color: '#10b981' }} />}
-            {matchStatus === 'pending' && <HelpCircle size={22} style={{ color: 'var(--color-accent)' }} />}
-          </div>
-        </div>
-
-        <div style={{ margin: '0.2rem 0' }}>
           <div
-            className={`reconcile-status-box ${matchStatus}`}
-            onClick={openClosingModal}
-            style={{ cursor: 'pointer', transition: 'transform 0.15s ease' }}
-            title="Click to perform or view End-of-Day Closing"
+            className="font-mono"
+            style={{
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              color: '#16a34a',
+              lineHeight: 1.15,
+              margin: '0.1rem 0',
+            }}
           >
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{matchMessage}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>
-                {closing
-                  ? `Closed at ${new Date(closing.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} by ${closing.closedBy}`
-                  : 'Counter open. Click to Reconcile & Close'}
-              </div>
-            </div>
-            <button
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                padding: '0.35rem 0.65rem',
-                borderRadius: 'var(--radius-sm)',
-                background: 'rgba(255, 255, 255, 0.15)',
-                color: 'inherit',
-              }}
-            >
-              <span>{closing ? 'View' : 'Close Day'}</span>
-              <ArrowRight size={12} />
-            </button>
+            {formatCurrency(dayBalances.totalIncome, config.currency)}
+          </div>
+
+          <div
+            style={{
+              fontSize: '0.625rem',
+              color: '#64748b',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <span>Cash: <strong style={{ color: '#0f172a' }}>{formatCurrency(dayBalances.cashIncome, config.currency)}</strong></span>
+            <span> • </span>
+            <span>Online: <strong style={{ color: '#0f172a' }}>{formatCurrency(dayBalances.onlineIncome, config.currency)}</strong></span>
           </div>
         </div>
 
-        <div className="kpi-sub-breakdown" style={{ marginTop: '0.4rem' }}>
-          <span>Expected Cash: <strong>{formatCurrency(dayBalances.expectedCash, config.currency)}</strong></span>
-          <span>•</span>
-          <span>Online: <strong>{formatCurrency(dayBalances.expectedOnline, config.currency)}</strong></span>
+        {/* RIGHT: EXPENSE (−) */}
+        <div style={{ borderLeft: '1px solid #f1f5f9', paddingLeft: '0.65rem', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+            <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#991b1b' }}>
+              − Expense
+            </span>
+            <TrendingDown size={13} style={{ color: '#dc2626' }} />
+          </div>
+
+          <div
+            className="font-mono"
+            style={{
+              fontSize: '1.25rem',
+              fontWeight: 800,
+              color: '#dc2626',
+              lineHeight: 1.15,
+              margin: '0.1rem 0',
+            }}
+          >
+            {formatCurrency(dayBalances.totalExpense, config.currency)}
+          </div>
+
+          <div
+            style={{
+              fontSize: '0.625rem',
+              color: '#64748b',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <span>Cash: <strong style={{ color: '#0f172a' }}>{formatCurrency(dayBalances.cashExpense, config.currency)}</strong></span>
+            <span> • </span>
+            <span>Online: <strong style={{ color: '#0f172a' }}>{formatCurrency(dayBalances.onlineExpense, config.currency)}</strong></span>
+          </div>
         </div>
+      </div>
+
+      {/* COMPACT RECONCILIATION & CLOSING STRIP */}
+      <div
+        className="card hero-closing-strip"
+        style={{
+          background: closing
+            ? (closing.status === 'balanced' ? '#f0fdf4' : '#fef2f2')
+            : '#f8fafc',
+          border: `1px solid ${
+            closing
+              ? (closing.status === 'balanced' ? '#bbf7d0' : '#fecaca')
+              : '#e2e8f0'
+          }`,
+          padding: '0.35rem 0.65rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.4rem',
+          cursor: 'pointer',
+        }}
+        onClick={openClosingModal}
+        title="Click to perform or view End-of-Day Closing"
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+          {matchStatus === 'balanced' && <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0 }} />}
+          {matchStatus === 'shortage' && <AlertTriangle size={14} style={{ color: '#dc2626', flexShrink: 0 }} />}
+          {matchStatus === 'excess' && <Sparkles size={14} style={{ color: '#16a34a', flexShrink: 0 }} />}
+          {matchStatus === 'pending' && <HelpCircle size={14} style={{ color: '#2563eb', flexShrink: 0 }} />}
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontWeight: 800,
+                  fontSize: '0.725rem',
+                  color: closing
+                    ? (closing.status === 'balanced' ? '#166534' : '#991b1b')
+                    : '#1e40af',
+                }}
+              >
+                {matchMessage}
+              </span>
+              <span style={{ fontSize: '0.625rem', color: '#64748b' }}>
+                (Drawer: <strong>{formatCurrency(dayBalances.expectedCash, config.currency)}</strong> • Online: <strong>{formatCurrency(dayBalances.expectedOnline, config.currency)}</strong>)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.2rem',
+            fontSize: '0.675rem',
+            fontWeight: 700,
+            padding: '0.2rem 0.45rem',
+            borderRadius: '4px',
+            background: closing ? 'rgba(0, 0, 0, 0.05)' : '#2563eb',
+            color: closing ? '#0f172a' : '#ffffff',
+            flexShrink: 0,
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <span>{closing ? 'View' : 'Close Day'}</span>
+          <ArrowRight size={10} />
+        </button>
       </div>
     </section>
   );
 };
+

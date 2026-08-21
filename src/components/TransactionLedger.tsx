@@ -12,7 +12,9 @@ import {
   Table,
   TrendingDown,
   TrendingUp,
-  FileText
+  FileText,
+  PlusCircle,
+  MinusCircle
 } from 'lucide-react';
 import { formatCurrency, getTodayDateString } from '../services/storageService';
 
@@ -180,21 +182,21 @@ export const TransactionLedger: React.FC = () => {
       <div
         className="card"
         style={{
-          marginBottom: '0.85rem',
+          marginBottom: '0.55rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.65rem',
-          padding: '0.75rem 1rem',
+          gap: '0.45rem',
+          padding: '0.55rem 0.75rem',
         }}
       >
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Search Input */}
-          <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
+            <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
               className="form-input"
-              style={{ paddingLeft: '2.2rem', width: '100%', fontSize: '0.8rem', padding: '0.4rem 0.65rem 0.4rem 2.2rem' }}
+              style={{ paddingLeft: '1.9rem', width: '100%', fontSize: '0.775rem', padding: '0.3rem 0.55rem 0.3rem 1.9rem' }}
               placeholder="Search note, category, staff, amount..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -202,11 +204,11 @@ export const TransactionLedger: React.FC = () => {
           </div>
 
           {/* Date Scope Filter */}
-          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.12rem', borderRadius: '6px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
             <button
               type="button"
               className={`nav-tab-btn ${dateMode === 'selected' ? 'active' : ''}`}
-              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem' }}
+              style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem' }}
               onClick={() => setDateMode('selected')}
             >
               📅 {selectedDate}
@@ -214,25 +216,25 @@ export const TransactionLedger: React.FC = () => {
             <button
               type="button"
               className={`nav-tab-btn ${dateMode === 'range' ? 'active' : ''}`}
-              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem' }}
+              style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem' }}
               onClick={() => setDateMode('range')}
             >
-              📆 Custom Duration
+              📆 Custom
             </button>
             <button
               type="button"
               className={`nav-tab-btn ${dateMode === 'all' ? 'active' : ''}`}
-              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem' }}
+              style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem' }}
               onClick={() => setDateMode('all')}
             >
-              All History
+              All
             </button>
           </div>
 
           {/* Payment Method Filter */}
           <select
             className="form-input"
-            style={{ width: 'auto', fontSize: '0.725rem', padding: '0.25rem 0.55rem', borderRadius: '6px' }}
+            style={{ width: 'auto', fontSize: '0.7rem', padding: '0.18rem 0.45rem', borderRadius: '6px' }}
             value={filterMethod}
             onChange={e => setFilterMethod(e.target.value as 'all' | 'cash' | 'upi' | 'rtgs')}
           >
@@ -243,102 +245,123 @@ export const TransactionLedger: React.FC = () => {
           </select>
 
           {/* View Mode Toggle */}
-          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.12rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
             <button
               type="button"
               className={`nav-tab-btn ${viewMode === 'split' ? 'active' : ''}`}
-              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               onClick={() => setViewMode('split')}
               title="Split View: Left Income | Right Expense"
             >
-              <Columns size={12} />
-              <span>Split View</span>
+              <Columns size={11} />
+              <span>Split</span>
             </button>
             <button
               type="button"
               className={`nav-tab-btn ${viewMode === 'table' ? 'active' : ''}`}
-              style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               onClick={() => setViewMode('table')}
               title="Table View"
             >
-              <Table size={12} />
+              <Table size={11} />
               <span>Table</span>
             </button>
           </div>
 
-          {/* Export Buttons: Excel & CSV */}
-          <div style={{ display: 'flex', gap: '0.35rem' }}>
+          {/* Quick Entry & Export Buttons */}
+          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-fast-income"
+              style={{ padding: '0.22rem 0.55rem', fontSize: '0.725rem', borderRadius: '5px', boxShadow: 'none' }}
+              onClick={() => openCounterModal('income')}
+              title="Add Income (+)"
+            >
+              <PlusCircle size={12} />
+              <span>+ Income</span>
+            </button>
+            <button
+              type="button"
+              className="btn-fast-expense"
+              style={{ padding: '0.22rem 0.55rem', fontSize: '0.725rem', borderRadius: '5px', boxShadow: 'none' }}
+              onClick={() => openCounterModal('expense')}
+              title="Add Expense (−)"
+            >
+              <MinusCircle size={12} />
+              <span>− Expense</span>
+            </button>
+
             <button
               type="button"
               className="icon-btn"
-              style={{ padding: '0.3rem 0.6rem', width: 'auto', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontSize: '0.725rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              style={{ padding: '0.22rem 0.45rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontSize: '0.675rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               onClick={handleExportExcel}
               title="Export to Excel (.xlsx)"
             >
-              <FileSpreadsheet size={14} />
+              <FileSpreadsheet size={12} />
               <span>Excel</span>
             </button>
             <button
               type="button"
               className="icon-btn"
-              style={{ padding: '0.3rem 0.6rem', width: 'auto', borderRadius: '6px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontSize: '0.725rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              style={{ padding: '0.22rem 0.45rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontSize: '0.675rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               onClick={handleExportCSV}
               title="Export to CSV"
             >
-              <FileText size={14} />
+              <FileText size={12} />
               <span>CSV</span>
             </button>
           </div>
         </div>
 
-        {/* Enhanced Custom Date Duration Row with Quick Presets */}
+        {/* Custom Date Duration Row with Quick Presets */}
         {dateMode === 'range' && (
           <div
             className="animate-scale-in"
             style={{
               background: '#eff6ff',
-              padding: '0.65rem 0.85rem',
-              borderRadius: '8px',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '6px',
               border: '1px solid #bfdbfe',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.5rem',
+              gap: '0.4rem',
             }}
           >
             {/* Quick Presets Row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.725rem', color: '#1e40af', fontWeight: 700 }}>Quick Select:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.7rem', color: '#1e40af', fontWeight: 700 }}>Quick:</span>
               <button
                 type="button"
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
+                style={{ fontSize: '0.675rem', padding: '0.15rem 0.4rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
                 onClick={() => setPresetRange('today')}
               >
                 Today
               </button>
               <button
                 type="button"
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
+                style={{ fontSize: '0.675rem', padding: '0.15rem 0.4rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
                 onClick={() => setPresetRange('yesterday')}
               >
                 Yesterday
               </button>
               <button
                 type="button"
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
+                style={{ fontSize: '0.675rem', padding: '0.15rem 0.4rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
                 onClick={() => setPresetRange('7days')}
               >
-                Last 7 Days
+                7 Days
               </button>
               <button
                 type="button"
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
+                style={{ fontSize: '0.675rem', padding: '0.15rem 0.4rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
                 onClick={() => setPresetRange('thisMonth')}
               >
                 This Month
               </button>
               <button
                 type="button"
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
+                style={{ fontSize: '0.675rem', padding: '0.15rem 0.4rem', background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, color: '#1d4ed8' }}
                 onClick={() => setPresetRange('lastMonth')}
               >
                 Last Month
@@ -346,31 +369,31 @@ export const TransactionLedger: React.FC = () => {
             </div>
 
             {/* Date Pickers */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.725rem', color: '#475569', fontWeight: 600 }}>From Date:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 600 }}>From:</span>
                 <input
                   type="date"
                   className="form-input"
-                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', width: 'auto', fontWeight: 700 }}
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.725rem', width: 'auto', fontWeight: 700 }}
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.725rem', color: '#475569', fontWeight: 600 }}>To Date:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 600 }}>To:</span>
                 <input
                   type="date"
                   className="form-input"
-                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', width: 'auto', fontWeight: 700 }}
+                  style={{ padding: '0.2rem 0.4rem', fontSize: '0.725rem', width: 'auto', fontWeight: 700 }}
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}
                 />
               </div>
 
-              <div style={{ fontSize: '0.75rem', color: '#1e40af', fontWeight: 700, marginLeft: 'auto' }}>
-                Showing {filteredTransactions.length} entries ({formatCurrency(totalIncome - totalExpense, config.currency)} net)
+              <div style={{ fontSize: '0.725rem', color: '#1e40af', fontWeight: 700, marginLeft: 'auto' }}>
+                {filteredTransactions.length} entries ({formatCurrency(totalIncome - totalExpense, config.currency)} net)
               </div>
             </div>
           </div>
@@ -382,8 +405,8 @@ export const TransactionLedger: React.FC = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '0.85rem',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '0.55rem',
           }}
         >
           {/* LEFT COLUMN: INCOME (+) */}
@@ -391,8 +414,8 @@ export const TransactionLedger: React.FC = () => {
             className="card"
             style={{
               background: '#f0fdf4',
-              border: '1.5px solid #bbf7d0',
-              padding: '0.75rem',
+              border: '1px solid #bbf7d0',
+              padding: '0.55rem 0.65rem',
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -402,57 +425,57 @@ export const TransactionLedger: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                paddingBottom: '0.5rem',
+                paddingBottom: '0.4rem',
                 borderBottom: '1px solid #bbf7d0',
-                marginBottom: '0.6rem',
+                marginBottom: '0.45rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <TrendingUp size={17} style={{ color: '#16a34a' }} />
-                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#166534' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <TrendingUp size={15} style={{ color: '#16a34a' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.825rem', color: '#166534' }}>
                   Income (+) ({incomeTxs.length})
                 </span>
               </div>
-              <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.95rem', color: '#16a34a' }}>
+              <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.9rem', color: '#16a34a' }}>
                 +{formatCurrency(totalIncome, config.currency)}
               </span>
             </div>
 
             {incomeTxs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-                No income transactions found
+              <div style={{ textAlign: 'center', padding: '1.5rem 1rem', color: '#94a3b8', fontSize: '0.8rem' }}>
+                No income transactions
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '480px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
                 {incomeTxs.map(tx => {
                   const method = tx.paymentMethod.toUpperCase();
                   return (
                     <div
                       key={tx.id}
                       style={{
-                        padding: '0.55rem 0.75rem',
-                        borderRadius: '6px',
+                        padding: '0.45rem 0.6rem',
+                        borderRadius: '5px',
                         background: '#ffffff',
-                        border: tx.isLoan ? '1.5px solid #fed7aa' : '1px solid #bbf7d0',
+                        border: tx.isLoan ? '1px solid #fed7aa' : '1px solid #dcfce7',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '0.5rem',
+                        gap: '0.4rem',
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a' }}>{tx.category}</span>
-                          <span className="badge badge-income" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{tx.category}</span>
+                          <span className="badge badge-income" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
                             {method}
                           </span>
                           {tx.isLoan && (
-                            <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.6rem', fontWeight: 700 }}>
-                              🤝 Loan Repaid
+                            <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
+                              🤝 Repaid
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.725rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span>{tx.time} ({tx.date})</span>
                           {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
                           {tx.note && <span> • "{tx.note}"</span>}
@@ -460,28 +483,28 @@ export const TransactionLedger: React.FC = () => {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 800, color: '#16a34a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <div className="font-mono" style={{ fontSize: '0.9rem', fontWeight: 800, color: '#16a34a' }}>
                           +{formatCurrency(tx.amount, config.currency)}
                         </div>
-                        <div style={{ display: 'flex', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', gap: '0.15rem' }}>
                           <button
                             type="button"
                             className="icon-btn"
-                            style={{ width: '26px', height: '26px' }}
+                            style={{ width: '22px', height: '22px' }}
                             onClick={() => handleEdit(tx)}
                             title="Edit"
                           >
-                            <Edit2 size={12} />
+                            <Edit2 size={10} />
                           </button>
                           <button
                             type="button"
                             className="icon-btn"
-                            style={{ width: '26px', height: '26px', color: '#dc2626' }}
+                            style={{ width: '22px', height: '22px', color: '#dc2626' }}
                             onClick={() => handleDelete(tx)}
                             title="Delete"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={10} />
                           </button>
                         </div>
                       </div>
@@ -497,8 +520,8 @@ export const TransactionLedger: React.FC = () => {
             className="card"
             style={{
               background: '#fef2f2',
-              border: '1.5px solid #fecaca',
-              padding: '0.75rem',
+              border: '1px solid #fecaca',
+              padding: '0.55rem 0.65rem',
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -508,57 +531,57 @@ export const TransactionLedger: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                paddingBottom: '0.5rem',
+                paddingBottom: '0.4rem',
                 borderBottom: '1px solid #fecaca',
-                marginBottom: '0.6rem',
+                marginBottom: '0.45rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <TrendingDown size={17} style={{ color: '#dc2626' }} />
-                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#991b1b' }}>
-                  Expense (-) ({expenseTxs.length})
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <TrendingDown size={15} style={{ color: '#dc2626' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.825rem', color: '#991b1b' }}>
+                  Expense (−) ({expenseTxs.length})
                 </span>
               </div>
-              <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.95rem', color: '#dc2626' }}>
+              <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.9rem', color: '#dc2626' }}>
                 -{formatCurrency(totalExpense, config.currency)}
               </span>
             </div>
 
             {expenseTxs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-                No expense transactions found
+              <div style={{ textAlign: 'center', padding: '1.5rem 1rem', color: '#94a3b8', fontSize: '0.8rem' }}>
+                No expense transactions
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '480px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
                 {expenseTxs.map(tx => {
                   const method = tx.paymentMethod.toUpperCase();
                   return (
                     <div
                       key={tx.id}
                       style={{
-                        padding: '0.55rem 0.75rem',
-                        borderRadius: '6px',
+                        padding: '0.45rem 0.6rem',
+                        borderRadius: '5px',
                         background: '#ffffff',
-                        border: tx.isLoan ? '1.5px solid #fed7aa' : '1px solid #fecaca',
+                        border: tx.isLoan ? '1px solid #fed7aa' : '1px solid #fee2e2',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: '0.5rem',
+                        gap: '0.4rem',
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#0f172a' }}>{tx.category}</span>
-                          <span className="badge badge-expense" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{tx.category}</span>
+                          <span className="badge badge-expense" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
                             {method}
                           </span>
                           {tx.isLoan && (
-                            <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.6rem', fontWeight: 700 }}>
-                              🤝 Loan Given
+                            <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
+                              🤝 Given
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.725rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span>{tx.time} ({tx.date})</span>
                           {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
                           {tx.note && <span> • "{tx.note}"</span>}
@@ -566,28 +589,28 @@ export const TransactionLedger: React.FC = () => {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 800, color: '#dc2626' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <div className="font-mono" style={{ fontSize: '0.9rem', fontWeight: 800, color: '#dc2626' }}>
                           -{formatCurrency(tx.amount, config.currency)}
                         </div>
-                        <div style={{ display: 'flex', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', gap: '0.15rem' }}>
                           <button
                             type="button"
                             className="icon-btn"
-                            style={{ width: '26px', height: '26px' }}
+                            style={{ width: '22px', height: '22px' }}
                             onClick={() => handleEdit(tx)}
                             title="Edit"
                           >
-                            <Edit2 size={12} />
+                            <Edit2 size={10} />
                           </button>
                           <button
                             type="button"
                             className="icon-btn"
-                            style={{ width: '26px', height: '26px', color: '#dc2626' }}
+                            style={{ width: '22px', height: '22px', color: '#dc2626' }}
                             onClick={() => handleDelete(tx)}
                             title="Delete"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={10} />
                           </button>
                         </div>
                       </div>
