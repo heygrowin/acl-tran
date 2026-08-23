@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeroStats } from './HeroStats';
 import { RunningBalanceBar } from './RunningBalanceBar';
@@ -6,6 +6,8 @@ import { TransactionLedger } from './TransactionLedger';
 import { LoanManager } from './LoanManager';
 import { ReportsAnalytics } from './ReportsAnalytics';
 import { SettingsModal } from './SettingsModal';
+import { DayClosingsLog } from './DayClosingsLog';
+import { ExportModal } from './ExportModal';
 import { PWAInstallButton } from './PWAInstallButton';
 import {
   LayoutDashboard,
@@ -20,7 +22,9 @@ import {
   ChevronRight,
   LogOut,
   PlusCircle,
-  MinusCircle
+  MinusCircle,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { getTodayDateString } from '../services/storageService';
 
@@ -31,9 +35,12 @@ export const AdminScreen: React.FC = () => {
     selectedDate,
     setSelectedDate,
     logoutToLanding,
-    openClosingModal,
     openCounterModal,
+    isCloudConnected,
   } = useApp();
+
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [exportDefaultFormat, setExportDefaultFormat] = useState<'excel' | 'csv'>('excel');
 
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +64,11 @@ export const AdminScreen: React.FC = () => {
     month: 'short',
     year: 'numeric',
   });
+
+  const handleTriggerExport = (fmt: 'excel' | 'csv') => {
+    setExportDefaultFormat(fmt);
+    setIsExportOpen(true);
+  };
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
@@ -99,11 +111,56 @@ export const AdminScreen: React.FC = () => {
               <span className="badge badge-online" style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem' }}>
                 Admin / Owner
               </span>
+              <button
+                type="button"
+                onClick={() => setAdminTab('settings')}
+                style={{
+                  background: isCloudConnected ? '#dcfce7' : '#fee2e2',
+                  border: `1px solid ${isCloudConnected ? '#86efac' : '#fecaca'}`,
+                  color: isCloudConnected ? '#15803d' : '#991b1b',
+                  fontSize: '0.625rem',
+                  fontWeight: 700,
+                  padding: '0.05rem 0.35rem',
+                  borderRadius: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  cursor: 'pointer',
+                }}
+                title={isCloudConnected ? 'Connected to Firebase Cloud' : 'Cloud Setup Required - Click to configure'}
+              >
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isCloudConnected ? '#16a34a' : '#dc2626' }} />
+                <span>{isCloudConnected ? 'Cloud Synced' : 'Cloud Setup'}</span>
+              </button>
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+          {/* Quick Excel & CSV Export Buttons with Date Range Popup */}
+          <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ padding: '0.18rem 0.4rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+              onClick={() => handleTriggerExport('excel')}
+              title="Export Transactions to Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={11} />
+              <span>Excel</span>
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ padding: '0.18rem 0.4rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+              onClick={() => handleTriggerExport('csv')}
+              title="Export Transactions to CSV"
+            >
+              <FileText size={11} />
+              <span>CSV</span>
+            </button>
+          </div>
+
           {/* Interactive Date Picker & Navigator */}
           <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', borderRadius: '6px', padding: '0.12rem 0.3rem', border: '1px solid #cbd5e1', position: 'relative' }}>
             <button className="icon-btn" style={{ width: '22px', height: '22px' }} onClick={handlePrevDay} title="Previous Day">
@@ -251,7 +308,7 @@ export const AdminScreen: React.FC = () => {
             <HeroStats />
             <RunningBalanceBar />
 
-            {/* Dual Fast Action Buttons: Left = + Income, Right = − Expense */}
+            {/* Dual Fast Action Buttons: Left = + Receive, Right = − Expense */}
             <div
               style={{
                 display: 'grid',
@@ -267,7 +324,7 @@ export const AdminScreen: React.FC = () => {
                 style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#16a34a', boxShadow: 'none' }}
               >
                 <PlusCircle size={16} />
-                <span>+ Income</span>
+                <span>+ Receive</span>
               </button>
 
               <button
@@ -289,36 +346,6 @@ export const AdminScreen: React.FC = () => {
 
         {adminTab === 'transactions' && (
           <div>
-            {/* Dual Fast Action Buttons: Left = + Income, Right = − Expense */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.45rem',
-                marginBottom: '0.45rem',
-              }}
-            >
-              <button
-                type="button"
-                className="btn-fast-income"
-                onClick={() => openCounterModal('income')}
-                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#16a34a', boxShadow: 'none' }}
-              >
-                <PlusCircle size={16} />
-                <span>+ Income</span>
-              </button>
-
-              <button
-                type="button"
-                className="btn-fast-expense"
-                onClick={() => openCounterModal('expense')}
-                style={{ padding: '0.55rem', fontSize: '0.85rem', background: '#dc2626', boxShadow: 'none' }}
-              >
-                <MinusCircle size={16} />
-                <span>− Expense</span>
-              </button>
-            </div>
-
             <TransactionLedger />
           </div>
         )}
@@ -328,25 +355,7 @@ export const AdminScreen: React.FC = () => {
         {adminTab === 'closing' && (
           <div>
             <HeroStats />
-            <div style={{ marginTop: '0.5rem', textAlign: 'center', padding: '1rem', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <Lock size={24} style={{ color: '#2563eb', marginBottom: '0.25rem' }} />
-              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>End-of-Day Closing & Cash Verification</h3>
-              <p style={{ fontSize: '0.75rem', color: '#64748b', maxWidth: '420px', margin: '0.25rem auto 0.75rem auto' }}>
-                Verify physical drawer cash notes and online statement balances to record daily match status.
-              </p>
-              <button
-                type="button"
-                className="btn-fast-income"
-                style={{ display: 'inline-flex', padding: '0.5rem 1.25rem', fontSize: '0.8rem' }}
-                onClick={openClosingModal}
-              >
-                <Lock size={14} />
-                <span>Open Day Closing Window</span>
-              </button>
-            </div>
-            <div style={{ marginTop: '0.5rem' }}>
-              <ReportsAnalytics />
-            </div>
+            <DayClosingsLog />
           </div>
         )}
 
@@ -354,6 +363,13 @@ export const AdminScreen: React.FC = () => {
 
         {adminTab === 'settings' && <SettingsModal />}
       </div>
+
+      {/* Export Modal with Date Range Selector */}
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        defaultFormat={exportDefaultFormat}
+      />
     </div>
   );
 };

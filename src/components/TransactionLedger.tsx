@@ -1,20 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Transaction } from '../types';
-import * as XLSX from 'xlsx';
 import {
   Search,
   Trash2,
   Edit2,
   Clock,
-  FileSpreadsheet,
   Columns,
   Table,
   TrendingDown,
-  TrendingUp,
-  FileText,
-  PlusCircle,
-  MinusCircle
+  TrendingUp
 } from 'lucide-react';
 import { formatCurrency, getTodayDateString } from '../services/storageService';
 
@@ -25,26 +20,20 @@ export const TransactionLedger: React.FC = () => {
     config,
     deleteTransaction,
     openCounterModal,
-    showToast,
   } = useApp();
 
   const todayStr = getTodayDateString();
+
+  // Local Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'upi' | 'rtgs'>('all');
   const [dateMode, setDateMode] = useState<'selected' | 'range' | 'all'>('selected');
+  const [startDate, setStartDate] = useState(selectedDate);
+  const [endDate, setEndDate] = useState(selectedDate);
   const [viewMode, setViewMode] = useState<'split' | 'table'>('split');
 
-  // Custom date range state
-  const [startDate, setStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState<string>(todayStr);
-
-  // Preset handlers
+  // Quick Range Presets
   const setPresetRange = (preset: 'today' | 'yesterday' | '7days' | 'thisMonth' | 'lastMonth') => {
-    setDateMode('range');
     const now = new Date();
     if (preset === 'today') {
       setStartDate(todayStr);
@@ -57,48 +46,53 @@ export const TransactionLedger: React.FC = () => {
       setEndDate(yStr);
     } else if (preset === '7days') {
       const d7 = new Date();
-      d7.setDate(d7.getDate() - 7);
+      d7.setDate(d7.getDate() - 6);
       setStartDate(d7.toISOString().split('T')[0]);
       setEndDate(todayStr);
     } else if (preset === 'thisMonth') {
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const start = `${year}-${month}-01`;
-      setStartDate(start);
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      setStartDate(firstDay);
       setEndDate(todayStr);
     } else if (preset === 'lastMonth') {
-      const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-      const y = prevMonth.getFullYear();
-      const m = String(prevMonth.getMonth() + 1).padStart(2, '0');
-      const d = String(lastDay.getDate()).padStart(2, '0');
-      setStartDate(`${y}-${m}-01`);
-      setEndDate(`${y}-${m}-${d}`);
+      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+      setStartDate(firstDayLastMonth);
+      setEndDate(lastDayLastMonth);
     }
   };
 
-  // Filter logic
+  // Filter Transactions
   const filteredTransactions = transactions.filter(t => {
-    if (dateMode === 'selected' && t.date !== selectedDate) return false;
-    if (dateMode === 'range') {
+    // 1. Date Scope Filter
+    if (dateMode === 'selected') {
+      if (t.date !== selectedDate) return false;
+    } else if (dateMode === 'range') {
       if (t.date < startDate || t.date > endDate) return false;
     }
-    if (filterMethod !== 'all' && t.paymentMethod.toLowerCase() !== filterMethod.toLowerCase()) return false;
 
+    // 2. Payment Method Filter
+    if (filterMethod !== 'all') {
+      if (t.paymentMethod.toLowerCase() !== filterMethod.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // 3. Search Query Filter
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
+      const matchCat = t.category?.toLowerCase().includes(q);
       const matchNote = t.note?.toLowerCase().includes(q);
-      const matchCat = t.category.toLowerCase().includes(q);
-      const matchCust = t.customerName?.toLowerCase().includes(q) || t.borrowerName?.toLowerCase().includes(q);
-      const matchStaff = t.staffName.toLowerCase().includes(q);
+      const matchPhone = t.customerPhone?.toLowerCase().includes(q) || t.borrowerPhone?.toLowerCase().includes(q);
+      const matchStaff = t.staffName?.toLowerCase().includes(q);
+      const matchAccount = t.paymentAccount?.toLowerCase().includes(q);
       const matchAmt = t.amount.toString().includes(q);
-      return matchNote || matchCat || matchCust || matchStaff || matchAmt;
+      return matchCat || matchNote || matchPhone || matchStaff || matchAccount || matchAmt;
     }
 
     return true;
   });
 
-  // Income FIRST (Left), Expense SECOND (Right)
+  // Split: Receive (Left) vs Expense (Right)
   const incomeTxs = filteredTransactions.filter(t => t.type === 'income');
   const expenseTxs = filteredTransactions.filter(t => t.type === 'expense');
 
@@ -106,7 +100,7 @@ export const TransactionLedger: React.FC = () => {
   const totalExpense = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
   const handleDelete = (tx: Transaction) => {
-    if (confirm(`Are you sure you want to delete this entry of ₹${tx.amount.toLocaleString()}?`)) {
+    if (confirm(`Delete ${tx.type.toUpperCase()} entry of ₹${tx.amount.toLocaleString()}?`)) {
       deleteTransaction(tx.id);
     }
   };
@@ -115,89 +109,40 @@ export const TransactionLedger: React.FC = () => {
     openCounterModal(tx.type, tx);
   };
 
-  // Export to Excel (.xlsx)
-  const handleExportExcel = () => {
-    const data = filteredTransactions.map(t => ({
-      'ID': t.id,
-      'Date': t.date,
-      'Time': t.time,
-      'Type': t.type === 'income' ? 'INCOME' : 'EXPENSE',
-      'Amount': t.amount,
-      'Payment Mode': t.paymentMethod.toUpperCase(),
-      'Category': t.category,
-      'Customer / Borrower': t.customerName || t.borrowerName || '',
-      'Staff': t.staffName,
-      'Note': t.note || '',
-      'Is Loan': t.isLoan ? 'YES' : 'NO',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-    const fileName = dateMode === 'selected'
-      ? `transactions_${selectedDate}.xlsx`
-      : dateMode === 'range'
-      ? `transactions_${startDate}_to_${endDate}.xlsx`
-      : `transactions_all_history.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    showToast(`Downloaded Excel file: ${fileName}`);
-  };
-
-  // Export to CSV
-  const handleExportCSV = () => {
-    const headers = ['ID', 'Date', 'Time', 'Type', 'Amount', 'PaymentMode', 'Category', 'Customer/Borrower', 'Staff', 'Note', 'IsLoan'];
-    const rows = filteredTransactions.map(t => [
-      t.id,
-      t.date,
-      t.time,
-      t.type === 'income' ? 'INCOME' : 'EXPENSE',
-      t.amount,
-      t.paymentMethod.toUpperCase(),
-      `"${(t.category || '').replace(/"/g, '""')}"`,
-      `"${(t.customerName || t.borrowerName || '').replace(/"/g, '""')}"`,
-      `"${(t.staffName || '').replace(/"/g, '""')}"`,
-      `"${(t.note || '').replace(/"/g, '""')}"`,
-      t.isLoan ? 'YES' : 'NO',
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    const fileName = dateMode === 'selected'
-      ? `transactions_${selectedDate}.csv`
-      : dateMode === 'range'
-      ? `transactions_${startDate}_to_${endDate}.csv`
-      : `transactions_all_history.csv`;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast(`Downloaded CSV: ${fileName}`);
-  };
-
   return (
     <div className="animate-fade-in">
       {/* Controls Bar */}
       <div
         className="card"
         style={{
-          marginBottom: '0.55rem',
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          padding: '0.5rem 0.65rem',
+          marginBottom: '0.45rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.45rem',
-          padding: '0.55rem 0.75rem',
+          gap: '0.4rem',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
         }}
       >
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Search Input */}
-          <div style={{ position: 'relative', flex: 1, minWidth: '150px' }}>
-            <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        {/* Main Controls Row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.4rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Search Box */}
+          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: '140px' }}>
+            <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               type="text"
               className="form-input"
               style={{ paddingLeft: '1.9rem', width: '100%', fontSize: '0.775rem', padding: '0.3rem 0.55rem 0.3rem 1.9rem' }}
-              placeholder="Search note, category, staff, amount..."
+              placeholder="Search note, head, phone, amount..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -251,7 +196,7 @@ export const TransactionLedger: React.FC = () => {
               className={`nav-tab-btn ${viewMode === 'split' ? 'active' : ''}`}
               style={{ fontSize: '0.7rem', padding: '0.18rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               onClick={() => setViewMode('split')}
-              title="Split View: Left Income | Right Expense"
+              title="Split View: Left Receive | Right Expense"
             >
               <Columns size={11} />
               <span>Split</span>
@@ -265,51 +210,6 @@ export const TransactionLedger: React.FC = () => {
             >
               <Table size={11} />
               <span>Table</span>
-            </button>
-          </div>
-
-          {/* Quick Entry & Export Buttons */}
-          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-fast-income"
-              style={{ padding: '0.22rem 0.55rem', fontSize: '0.725rem', borderRadius: '5px', boxShadow: 'none' }}
-              onClick={() => openCounterModal('income')}
-              title="Add Income (+)"
-            >
-              <PlusCircle size={12} />
-              <span>+ Income</span>
-            </button>
-            <button
-              type="button"
-              className="btn-fast-expense"
-              style={{ padding: '0.22rem 0.55rem', fontSize: '0.725rem', borderRadius: '5px', boxShadow: 'none' }}
-              onClick={() => openCounterModal('expense')}
-              title="Add Expense (−)"
-            >
-              <MinusCircle size={12} />
-              <span>− Expense</span>
-            </button>
-
-            <button
-              type="button"
-              className="icon-btn"
-              style={{ padding: '0.22rem 0.45rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontSize: '0.675rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-              onClick={handleExportExcel}
-              title="Export to Excel (.xlsx)"
-            >
-              <FileSpreadsheet size={12} />
-              <span>Excel</span>
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              style={{ padding: '0.22rem 0.45rem', width: 'auto', height: '24px', borderRadius: '5px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', fontSize: '0.675rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-              onClick={handleExportCSV}
-              title="Export to CSV"
-            >
-              <FileText size={12} />
-              <span>CSV</span>
             </button>
           </div>
         </div>
@@ -400,7 +300,7 @@ export const TransactionLedger: React.FC = () => {
         )}
       </div>
 
-      {/* TWO-COLUMN SPLIT VIEW: Left = Income, Right = Expense */}
+      {/* TWO-COLUMN SPLIT VIEW: Left = Receive, Right = Expense */}
       {viewMode === 'split' ? (
         <div
           style={{
@@ -409,7 +309,7 @@ export const TransactionLedger: React.FC = () => {
             gap: '0.55rem',
           }}
         >
-          {/* LEFT COLUMN: INCOME (+) */}
+          {/* LEFT COLUMN: RECEIVE */}
           <div
             className="card"
             style={{
@@ -425,15 +325,15 @@ export const TransactionLedger: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                paddingBottom: '0.4rem',
+                paddingBottom: '0.35rem',
                 borderBottom: '1px solid #bbf7d0',
                 marginBottom: '0.45rem',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <TrendingUp size={15} style={{ color: '#16a34a' }} />
-                <span style={{ fontWeight: 800, fontSize: '0.825rem', color: '#166534' }}>
-                  Income (+) ({incomeTxs.length})
+                <span className="badge badge-income" style={{ fontSize: '0.675rem', padding: '0.05rem 0.4rem', fontWeight: 800 }}>
+                  +{incomeTxs.length}
                 </span>
               </div>
               <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.9rem', color: '#16a34a' }}>
@@ -443,12 +343,16 @@ export const TransactionLedger: React.FC = () => {
 
             {incomeTxs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '1.5rem 1rem', color: '#94a3b8', fontSize: '0.8rem' }}>
-                No income transactions
+                No receive transactions
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '480px', overflowY: 'auto' }}>
                 {incomeTxs.map(tx => {
-                  const method = tx.paymentMethod.toUpperCase();
+                  const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                  const displayMethod = isUpi
+                    ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                    : tx.paymentMethod.toUpperCase();
+
                   return (
                     <div
                       key={tx.id}
@@ -464,22 +368,27 @@ export const TransactionLedger: React.FC = () => {
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{tx.category}</span>
-                          <span className="badge badge-income" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
-                            {method}
+                        {/* Primary: Head */}
+                        <div style={{ fontWeight: 800, fontSize: '0.825rem', color: '#0f172a', lineHeight: 1.25 }}>
+                          {tx.category || 'Receive'}
+                        </div>
+
+                        {/* Subtitle: Made by + Payment Mode + Note + Phone */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                          <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                            👤 {tx.staffName || 'Counter'}
+                          </span>
+                          <span>•</span>
+                          <span className="badge badge-income" style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>
+                            {displayMethod}
                           </span>
                           {tx.isLoan && (
                             <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
                               🤝 Repaid
                             </span>
                           )}
-                        </div>
-                        <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span>{tx.time} ({tx.date})</span>
-                          {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
-                          {tx.note && <span> • "{tx.note}"</span>}
-                          <span style={{ opacity: 0.7 }}> • By {tx.staffName}</span>
+                          {tx.note && <span style={{ color: '#64748b' }}>• "{tx.note}"</span>}
+                          {(tx.customerPhone || tx.borrowerPhone) && <span style={{ color: '#64748b' }}>• 📞 {tx.customerPhone || tx.borrowerPhone}</span>}
                         </div>
                       </div>
 
@@ -515,7 +424,7 @@ export const TransactionLedger: React.FC = () => {
             )}
           </div>
 
-          {/* RIGHT COLUMN: EXPENSE (-) */}
+          {/* RIGHT COLUMN: EXPENSE */}
           <div
             className="card"
             style={{
@@ -531,15 +440,15 @@ export const TransactionLedger: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                paddingBottom: '0.4rem',
+                paddingBottom: '0.35rem',
                 borderBottom: '1px solid #fecaca',
                 marginBottom: '0.45rem',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <TrendingDown size={15} style={{ color: '#dc2626' }} />
-                <span style={{ fontWeight: 800, fontSize: '0.825rem', color: '#991b1b' }}>
-                  Expense (−) ({expenseTxs.length})
+                <span className="badge badge-expense" style={{ fontSize: '0.675rem', padding: '0.05rem 0.4rem', fontWeight: 800 }}>
+                  −{expenseTxs.length}
                 </span>
               </div>
               <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.9rem', color: '#dc2626' }}>
@@ -552,9 +461,13 @@ export const TransactionLedger: React.FC = () => {
                 No expense transactions
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '480px', overflowY: 'auto' }}>
                 {expenseTxs.map(tx => {
-                  const method = tx.paymentMethod.toUpperCase();
+                  const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                  const displayMethod = isUpi
+                    ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                    : tx.paymentMethod.toUpperCase();
+
                   return (
                     <div
                       key={tx.id}
@@ -570,22 +483,27 @@ export const TransactionLedger: React.FC = () => {
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{tx.category}</span>
-                          <span className="badge badge-expense" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
-                            {method}
+                        {/* Primary: Head */}
+                        <div style={{ fontWeight: 800, fontSize: '0.825rem', color: '#0f172a', lineHeight: 1.25 }}>
+                          {tx.category || 'Expense'}
+                        </div>
+
+                        {/* Subtitle: Made by + Payment Mode + Note + Phone */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                          <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                            👤 {tx.staffName || 'Counter'}
+                          </span>
+                          <span>•</span>
+                          <span className="badge badge-expense" style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>
+                            {displayMethod}
                           </span>
                           {tx.isLoan && (
                             <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
                               🤝 Given
                             </span>
                           )}
-                        </div>
-                        <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span>{tx.time} ({tx.date})</span>
-                          {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
-                          {tx.note && <span> • "{tx.note}"</span>}
-                          <span style={{ opacity: 0.7 }}> • By {tx.staffName}</span>
+                          {tx.note && <span style={{ color: '#64748b' }}>• "{tx.note}"</span>}
+                          {(tx.customerPhone || tx.borrowerPhone) && <span style={{ color: '#64748b' }}>• 📞 {tx.customerPhone || tx.borrowerPhone}</span>}
                         </div>
                       </div>
 
@@ -636,11 +554,11 @@ export const TransactionLedger: React.FC = () => {
                   <tr>
                     <th>Time / Date</th>
                     <th>Type</th>
-                    <th>Category</th>
-                    <th>Party / Borrower</th>
+                    <th>Head</th>
+                    <th>Phone Number</th>
                     <th>Note</th>
-                    <th>Mode</th>
-                    <th>Staff</th>
+                    <th>Mode & Account</th>
+                    <th>Staff / Made By</th>
                     <th style={{ textAlign: 'right' }}>Amount</th>
                     <th style={{ textAlign: 'center' }}>Actions</th>
                   </tr>
@@ -648,7 +566,10 @@ export const TransactionLedger: React.FC = () => {
                 <tbody>
                   {filteredTransactions.map(tx => {
                     const isIncome = tx.type === 'income';
-                    const method = tx.paymentMethod.toUpperCase();
+                    const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                    const methodDisplay = isUpi
+                      ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                      : tx.paymentMethod.toUpperCase();
 
                     return (
                       <tr key={tx.id}>
@@ -658,11 +579,11 @@ export const TransactionLedger: React.FC = () => {
                         </td>
                         <td>
                           <span className={`badge badge-${isIncome ? 'income' : 'expense'}`} style={{ fontSize: '0.7rem' }}>
-                            {isIncome ? 'Income' : 'Expense'}
+                            {isIncome ? 'Receive' : 'Expense'}
                           </span>
                         </td>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{tx.category}</div>
+                          <div style={{ fontWeight: 700 }}>{tx.category}</div>
                           {tx.isLoan && (
                             <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.6rem', fontWeight: 700 }}>
                               🤝 {tx.loanType === 'given' ? 'Loan Given' : 'Loan Repaid'}
@@ -671,7 +592,7 @@ export const TransactionLedger: React.FC = () => {
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                            {tx.customerName || tx.borrowerName || '—'}
+                            {tx.customerPhone || tx.borrowerPhone || '—'}
                           </div>
                         </td>
                         <td>
@@ -680,12 +601,12 @@ export const TransactionLedger: React.FC = () => {
                           </div>
                         </td>
                         <td>
-                          <span className={`badge ${method === 'CASH' ? 'badge-cash' : 'badge-online'}`} style={{ fontSize: '0.7rem' }}>
-                            {method}
+                          <span className={`badge ${tx.paymentMethod === 'cash' ? 'badge-cash' : 'badge-online'}`} style={{ fontSize: '0.7rem' }}>
+                            {methodDisplay}
                           </span>
                         </td>
                         <td>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{tx.staffName}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#1e293b', fontWeight: 600 }}>👤 {tx.staffName}</span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <span className="font-mono" style={{ fontWeight: 800, color: isIncome ? '#16a34a' : '#dc2626' }}>

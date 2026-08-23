@@ -56,6 +56,8 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
   'Other Expense'
 ];
 
+export const DEFAULT_UPI_ACCOUNTS: string[] = [];
+
 export const DEFAULT_CONFIG: BusinessConfig = {
   id: 'biz_default',
   businessName: 'ACL Counter Manage',
@@ -71,6 +73,7 @@ export const DEFAULT_CONFIG: BusinessConfig = {
   defaultOpeningOnline: 5000,
   incomeCategories: DEFAULT_INCOME_CATEGORIES,
   expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+  upiAccounts: DEFAULT_UPI_ACCOUNTS,
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   theme: 'light',
   soundEnabled: true,
@@ -165,6 +168,9 @@ export class StorageService {
           ...parsed,
           incomeCategories: Array.isArray(parsed.incomeCategories) ? parsed.incomeCategories : DEFAULT_INCOME_CATEGORIES,
           expenseCategories: Array.isArray(parsed.expenseCategories) ? parsed.expenseCategories : DEFAULT_EXPENSE_CATEGORIES,
+          upiAccounts: Array.isArray(parsed.upiAccounts)
+            ? parsed.upiAccounts.filter((a: string) => !['Shop QR', 'PhonePe QR', 'Paytm QR', 'Bank QR', 'Bank UPI'].includes(a))
+            : DEFAULT_UPI_ACCOUNTS,
           counters: (parsed.counters && parsed.counters.length > 0) ? parsed.counters : DEFAULT_COUNTERS,
         };
       }
@@ -302,6 +308,20 @@ export class StorageService {
           expenseCategories: [cleanCat, ...cfg.expenseCategories],
         });
       }
+    }
+  }
+
+  // --- AUTO-SAVE UPI ACCOUNT ---
+  public addUpiAccount(acc: string): void {
+    const cleanAcc = acc.trim();
+    if (!cleanAcc) return;
+    const cfg = this.getConfig();
+    const existing = cfg.upiAccounts || DEFAULT_UPI_ACCOUNTS;
+    if (!existing.some(a => a.toLowerCase() === cleanAcc.toLowerCase())) {
+      this.saveConfig({
+        ...cfg,
+        upiAccounts: [cleanAcc, ...existing],
+      });
     }
   }
 
@@ -583,16 +603,20 @@ export class StorageService {
 
     let loan = loans.find(l => (cleanPhone && l.borrowerPhone === cleanPhone) || l.borrowerName.toLowerCase() === cleanName.toLowerCase());
 
+    const cfg = this.getConfig();
+    const bizId = cfg.id || 'biz_default';
+
     if (loan) {
       loan.totalLent += amount;
       loan.pendingAmount += amount;
       loan.lastActivityDate = date;
       if (notes) loan.notes = notes;
       loan.updatedAt = now;
+      loan.businessId = bizId;
     } else {
       loan = {
         id: `loan_${now}_${Math.random().toString(36).substring(2, 6)}`,
-        businessId: 'biz_default',
+        businessId: bizId,
         borrowerName: cleanName,
         borrowerPhone: cleanPhone,
         totalLent: amount,
@@ -611,7 +635,7 @@ export class StorageService {
 
     // Auto-create Expense (Money Out) transaction
     const tx = this.addTransaction({
-      businessId: 'biz_default',
+      businessId: bizId,
       date,
       time: getCurrentTimeString(),
       type: 'expense',
@@ -642,17 +666,20 @@ export class StorageService {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) throw new Error('Loan account not found');
 
+    const cfg = this.getConfig();
+    const bizId = cfg.id || 'biz_default';
     const now = Date.now();
     loan.totalRepaid += amount;
     loan.pendingAmount = Math.max(0, loan.pendingAmount - amount);
     loan.lastActivityDate = date;
     loan.updatedAt = now;
+    loan.businessId = bizId;
     this.saveLoans(loans);
     saveLoanToCloud(loan);
 
     // Auto-create Income (Money In) transaction
     const tx = this.addTransaction({
-      businessId: 'biz_default',
+      businessId: bizId,
       date,
       time: getCurrentTimeString(),
       type: 'income',

@@ -25,23 +25,38 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   onClose,
   initialType = 'income',
 }) => {
-  const { config, addTransaction, updateTransaction, editingTransaction, selectedDate, addCategory } = useApp();
+  const {
+    config,
+    addTransaction,
+    updateTransaction,
+    editingTransaction,
+    selectedDate,
+    addCategory,
+    addUpiAccount,
+    selectedMember,
+  } = useApp();
 
   const [type, setType] = useState<TransactionType>(initialType);
   const [amount, setAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
-  const [category, setCategory] = useState<string>('');
+  const [upiAccount, setUpiAccount] = useState<string>('');
+  const [category, setCategory] = useState<string>(''); // Head in UI
   const [note, setNote] = useState<string>('');
-  const [staffName, setStaffName] = useState<string>(config.activeStaffName || 'Counter Employee');
-
-  // Customer details (Optional)
-  const [customerName, setCustomerName] = useState<string>('');
+  const [staffName, setStaffName] = useState<string>(selectedMember || config.activeStaffName || 'Counter 1');
   const [customerPhone, setCustomerPhone] = useState<string>('');
 
-  // Category auto-suggest dropdown state
+  // Dropdown states
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isUpiDropdownOpen, setIsUpiDropdownOpen] = useState(false);
+
   const categoryContainerRef = useRef<HTMLDivElement>(null);
+  const upiContainerRef = useRef<HTMLDivElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
+
+  const existingCategories = type === 'income' ? config.incomeCategories : config.expenseCategories;
+  const existingUpiAccounts = (config.upiAccounts || []).filter(
+    (a: string) => !['Shop QR', 'PhonePe QR', 'Paytm QR', 'Bank QR', 'Bank UPI'].includes(a)
+  );
 
   // Sync state on open or when editing
   useEffect(() => {
@@ -49,22 +64,24 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setType(editingTransaction.type);
       setAmount(editingTransaction.amount.toString());
       setPaymentMethod(editingTransaction.paymentMethod || 'cash');
+      setUpiAccount(editingTransaction.paymentAccount || '');
       setCategory(editingTransaction.category || '');
       setNote(editingTransaction.note || '');
-      setStaffName(editingTransaction.staffName || 'Counter Employee');
-      setCustomerName(editingTransaction.customerName || editingTransaction.borrowerName || '');
+      setStaffName(editingTransaction.staffName || selectedMember || 'Counter 1');
       setCustomerPhone(editingTransaction.customerPhone || editingTransaction.borrowerPhone || '');
     } else {
       setType(initialType);
       setAmount('');
       setPaymentMethod('cash');
+      setUpiAccount('');
       setCategory('');
       setNote('');
-      setCustomerName('');
+      setStaffName(selectedMember || config.activeStaffName || 'Counter 1');
       setCustomerPhone('');
     }
     setIsCategoryDropdownOpen(false);
-  }, [isOpen, initialType, editingTransaction, config]);
+    setIsUpiDropdownOpen(false);
+  }, [isOpen, initialType, editingTransaction, config, selectedMember]);
 
   // Focus amount input on open
   useEffect(() => {
@@ -75,11 +92,14 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     }
   }, [isOpen, type]);
 
-  // Close category dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (categoryContainerRef.current && !categoryContainerRef.current.contains(e.target as Node)) {
         setIsCategoryDropdownOpen(false);
+      }
+      if (upiContainerRef.current && !upiContainerRef.current.contains(e.target as Node)) {
+        setIsUpiDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -99,23 +119,27 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   // Keyboard shortcut listener
   useEffect(() => {
     if (!isOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const existingCategories = type === 'income' ? config.incomeCategories : config.expenseCategories;
   const filteredCategories = existingCategories.filter(c =>
     c.toLowerCase().includes(category.trim().toLowerCase())
   );
   const isExactCategoryMatch = existingCategories.some(
     c => c.toLowerCase() === category.trim().toLowerCase()
+  );
+
+  const filteredUpiAccounts = existingUpiAccounts.filter(a =>
+    a.toLowerCase().includes(upiAccount.trim().toLowerCase())
+  );
+  const isExactUpiMatch = existingUpiAccounts.some(
+    a => a.toLowerCase() === upiAccount.trim().toLowerCase()
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -128,12 +152,18 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     }
 
     const typedCategory = category.trim();
-    const finalCategory = typedCategory || (type === 'income' ? 'Income' : 'Expense');
+    const finalCategory = typedCategory || (type === 'income' ? 'Receive' : 'Expense');
 
-    // Only auto-save to category presets if user explicitly typed a custom category name
-    if (typedCategory && typedCategory.toLowerCase() !== 'income' && typedCategory.toLowerCase() !== 'expense') {
+    if (typedCategory && typedCategory.toLowerCase() !== 'receive' && typedCategory.toLowerCase() !== 'income' && typedCategory.toLowerCase() !== 'expense') {
       addCategory(type, typedCategory);
     }
+
+    const finalPaymentAccount = paymentMethod === 'upi' ? upiAccount.trim() : undefined;
+    if (paymentMethod === 'upi' && finalPaymentAccount) {
+      addUpiAccount(finalPaymentAccount);
+    }
+
+    const effectiveStaffName = staffName.trim() || selectedMember || 'Counter 1';
 
     if (editingTransaction) {
       updateTransaction({
@@ -141,11 +171,11 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
         type,
         amount: finalAmount,
         paymentMethod,
+        paymentAccount: finalPaymentAccount || undefined,
         category: finalCategory,
         note: note.trim() || undefined,
-        customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
-        staffName: staffName || 'Counter Employee',
+        staffName: effectiveStaffName,
       });
     } else {
       addTransaction({
@@ -155,11 +185,11 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
         type,
         amount: finalAmount,
         paymentMethod,
+        paymentAccount: finalPaymentAccount || undefined,
         category: finalCategory,
         note: note.trim() || undefined,
-        customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
-        staffName: staffName || 'Counter Employee',
+        staffName: effectiveStaffName,
       });
     }
 
@@ -184,7 +214,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ fontSize: '1.1rem' }}>{type === 'income' ? '🟢' : '🔴'}</span>
             <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
-              {editingTransaction ? 'Edit Entry' : type === 'income' ? '+ Income Entry' : '− Expense Entry'}
+              {editingTransaction ? 'Edit Entry' : type === 'income' ? '+ Receive Entry' : '− Expense Entry'}
             </h2>
           </div>
           <button className="icon-btn" style={{ width: '26px', height: '26px' }} onClick={onClose}>
@@ -194,8 +224,8 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
         {/* Modal Body */}
         <form onSubmit={handleSubmit} style={{ padding: '0.75rem 0.85rem' }}>
-          {/* 1. Type Switcher: Income (First) vs Expense (Second) */}
-          <div className="entry-type-toggle" style={{ marginBottom: '0.6rem', padding: '0.2rem' }}>
+          {/* 1. Type Switcher: Receive vs Expense */}
+          <div className="entry-type-toggle" style={{ marginBottom: '0.55rem', padding: '0.2rem' }}>
             <button
               type="button"
               className={`type-toggle-btn income ${type === 'income' ? 'active' : ''}`}
@@ -203,7 +233,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               onClick={() => handleTypeChange('income')}
             >
               <PlusCircle size={15} />
-              <span>+ Income</span>
+              <span>+ Receive</span>
             </button>
             <button
               type="button"
@@ -216,40 +246,133 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </button>
           </div>
 
-          {/* 2. Customer Name, Mobile Number & Note (TOP) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.6rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+          {/* 2. HEAD SELECTOR (Positioned above phone & note, with dropdown on click/focus) */}
+          <div ref={categoryContainerRef} style={{ position: 'relative', marginBottom: '0.55rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+              <label style={{ fontSize: '0.725rem', fontWeight: 700, color: '#334155' }}>
+                Head:
+              </label>
+              <span style={{ fontSize: '0.625rem', color: '#64748b' }}>Select or type new</span>
+            </div>
+
+            <div style={{ position: 'relative' }}>
               <input
                 type="text"
                 className="form-input"
-                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
-                placeholder="Party Name (Optional)"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
+                style={{ fontSize: '0.825rem', padding: '0.4rem 2rem 0.4rem 0.65rem', fontWeight: 600 }}
+                placeholder={type === 'income' ? 'Head (e.g. Product Sales, Order, Service)' : 'Head (e.g. Tea & Snacks, Fuel, Salary)'}
+                value={category}
+                onChange={e => {
+                  setCategory(e.target.value);
+                  setIsCategoryDropdownOpen(true);
+                }}
+                onFocus={() => setIsCategoryDropdownOpen(true)}
               />
-              <input
-                type="tel"
-                className="form-input"
-                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
-                placeholder="Mobile (Optional)"
-                value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
-              />
+              <button
+                type="button"
+                style={{
+                  position: 'absolute',
+                  right: '0.65rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#94a3b8',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+              >
+                <ChevronDown size={14} />
+              </button>
             </div>
 
+            {/* Head Auto-suggest Dropdown */}
+            {isCategoryDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '0.2rem',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+                  zIndex: 60,
+                  maxHeight: '170px',
+                  overflowY: 'auto',
+                }}
+              >
+                {filteredCategories.map(cat => (
+                  <div
+                    key={cat}
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f1f5f9',
+                      background: category.toLowerCase() === cat.toLowerCase() ? '#eff6ff' : 'transparent',
+                    }}
+                    onClick={() => {
+                      setCategory(cat);
+                      setIsCategoryDropdownOpen(false);
+                    }}
+                  >
+                    {cat}
+                  </div>
+                ))}
+
+                {category.trim() && !isExactCategoryMatch && (
+                  <div
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: '#2563eb',
+                      cursor: 'pointer',
+                      background: '#eff6ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                    }}
+                    onClick={() => {
+                      setIsCategoryDropdownOpen(false);
+                    }}
+                  >
+                    <Plus size={13} />
+                    <span>Create new "{category.trim()}"</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Phone Number & Note (Party Name completely removed) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.55rem' }}>
+            <input
+              type="tel"
+              className="form-input"
+              style={{ fontSize: '0.775rem', padding: '0.35rem 0.55rem' }}
+              placeholder="Phone Number (Optional)"
+              value={customerPhone}
+              onChange={e => setCustomerPhone(e.target.value)}
+            />
             <input
               type="text"
               className="form-input"
-              style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem' }}
-              placeholder="Note / Description (e.g. Tea, Order #101)"
+              style={{ fontSize: '0.775rem', padding: '0.35rem 0.55rem' }}
+              placeholder="Note / Description (Optional)"
               value={note}
               onChange={e => setNote(e.target.value)}
             />
           </div>
 
-          {/* 3. Amount Input */}
-          <div style={{ marginBottom: '0.6rem' }}>
-            <div className="giant-amount-wrap" style={{ padding: '0.3rem 0.65rem', marginBottom: '0.4rem' }}>
+          {/* 4. Amount Input */}
+          <div style={{ marginBottom: '0.55rem' }}>
+            <div className="giant-amount-wrap" style={{ padding: '0.3rem 0.65rem', marginBottom: '0.35rem' }}>
               <span className="giant-currency-symbol" style={{ fontSize: '1.4rem' }}>{config.currency}</span>
               <input
                 ref={amountInputRef}
@@ -274,7 +397,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </div>
 
             {/* Quick Amount Presets */}
-            <div className="amount-presets-row" style={{ marginBottom: '0.6rem' }}>
+            <div className="amount-presets-row" style={{ marginBottom: '0.5rem' }}>
               {[100, 200, 500, 1000, 2000, 5000].map(preset => (
                 <button
                   key={preset}
@@ -289,8 +412,8 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </div>
           </div>
 
-          {/* 4. Payment Method Options: Cash, UPI, RTGS */}
-          <div style={{ marginBottom: '0.6rem' }}>
+          {/* 5. Payment Method Options: Cash, UPI, RTGS */}
+          <div style={{ marginBottom: '0.55rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
               <button
                 key="cash"
@@ -342,103 +465,112 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </div>
           </div>
 
-          {/* 5. Dynamic Auto-Suggest Category Box */}
-          <div ref={categoryContainerRef} style={{ position: 'relative', marginBottom: '0.75rem' }}>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                className="form-input"
-                style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem' }}
-                placeholder="Category (type or select e.g. Tea, Order, Fuel)"
-                value={category}
-                onChange={e => {
-                  setCategory(e.target.value);
-                  setIsCategoryDropdownOpen(true);
-                }}
-                onFocus={() => setIsCategoryDropdownOpen(true)}
-              />
-              <button
-                type="button"
-                style={{
-                  position: 'absolute',
-                  right: '0.65rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#94a3b8',
-                }}
-                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-
-            {/* Category Auto-suggest Dropdown */}
-            {isCategoryDropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: '0.2rem',
-                  background: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
-                  boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
-                  zIndex: 50,
-                  maxHeight: '160px',
-                  overflowY: 'auto',
-                }}
-              >
-                {filteredCategories.map(cat => (
-                  <div
-                    key={cat}
-                    style={{
-                      padding: '0.45rem 0.75rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #f1f5f9',
-                      background: category.toLowerCase() === cat.toLowerCase() ? '#eff6ff' : 'transparent',
-                    }}
-                    onClick={() => {
-                      setCategory(cat);
-                      setIsCategoryDropdownOpen(false);
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
-                    onMouseLeave={e => (e.currentTarget.style.background = category.toLowerCase() === cat.toLowerCase() ? '#eff6ff' : 'transparent')}
-                  >
-                    {cat}
-                  </div>
-                ))}
-
-                {category.trim() && !isExactCategoryMatch && (
-                  <div
-                    style={{
-                      padding: '0.45rem 0.75rem',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      color: '#2563eb',
-                      cursor: 'pointer',
-                      background: '#eff6ff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                    }}
-                    onClick={() => {
-                      setIsCategoryDropdownOpen(false);
-                    }}
-                  >
-                    <Plus size={13} />
-                    <span>Create new "{category.trim()}"</span>
-                  </div>
-                )}
+          {/* 6. UPI / ONLINE ACCOUNT (Appears cleanly when UPI is selected) */}
+          {paymentMethod === 'upi' && (
+            <div ref={upiContainerRef} style={{ position: 'relative', marginBottom: '0.55rem' }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ fontSize: '0.8rem', padding: '0.4rem 2rem 0.4rem 0.65rem', fontWeight: 600, background: '#eff6ff', border: '1px solid #bfdbfe' }}
+                  placeholder="Which UPI Account? (e.g. name@iob, axis@upi)"
+                  value={upiAccount}
+                  onChange={e => {
+                    setUpiAccount(e.target.value);
+                    setIsUpiDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsUpiDropdownOpen(true)}
+                />
+                <button
+                  type="button"
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#3b82f6',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setIsUpiDropdownOpen(!isUpiDropdownOpen)}
+                >
+                  <ChevronDown size={14} />
+                </button>
               </div>
-            )}
-          </div>
 
-          {/* 6. Save Button */}
+              {/* UPI Dropdown */}
+              {isUpiDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.2rem',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+                    zIndex: 70,
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  {filteredUpiAccounts.map(acc => (
+                    <div
+                      key={acc}
+                      style={{
+                        padding: '0.45rem 0.75rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f1f5f9',
+                        background: upiAccount.toLowerCase() === acc.toLowerCase() ? '#eff6ff' : 'transparent',
+                      }}
+                      onClick={() => {
+                        setUpiAccount(acc);
+                        setIsUpiDropdownOpen(false);
+                      }}
+                    >
+                      {acc}
+                    </div>
+                  ))}
+
+                  {upiAccount.trim() && !isExactUpiMatch && (
+                    <div
+                      style={{
+                        padding: '0.45rem 0.75rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        color: '#2563eb',
+                        cursor: 'pointer',
+                        background: '#eff6ff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                      onClick={() => {
+                        setIsUpiDropdownOpen(false);
+                      }}
+                    >
+                      <Plus size={13} />
+                      <span>Add new "{upiAccount.trim()}"</span>
+                    </div>
+                  )}
+
+                  {filteredUpiAccounts.length === 0 && !upiAccount.trim() && (
+                    <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#94a3b8' }}>
+                      Type account or UPI ID to save it
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 7. Save Button */}
           <button
             type="submit"
             className={`btn-save-transaction ${type}`}

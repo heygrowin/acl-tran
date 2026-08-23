@@ -43,6 +43,7 @@ export interface Transaction {
   customerPhone?: string;
   orderRef?: string;
   staffName: string;
+  paymentAccount?: string; // e.g. 'Shop GPay', 'HDFC QR', 'PhonePe', etc.
 
   createdAt: number;
   updatedAt: number;
@@ -116,6 +117,7 @@ export interface BusinessConfig {
   defaultOpeningOnline: number;
   incomeCategories: string[];
   expenseCategories: string[];
+  upiAccounts: string[]; // Dynamic list of UPI Accounts / QRs (e.g. 'Shop QR', 'GPay', etc.)
   paymentMethods: PaymentMethodConfig[];
   theme: 'light' | 'dark';
   soundEnabled: boolean;

@@ -7,21 +7,27 @@ import {
   Store,
   Key,
   Users,
-  Database,
   Download,
   Upload,
   RefreshCw,
   Plus,
   Trash2,
   Check,
-  Flame,
-  HardDrive,
   UserCheck,
   AlertTriangle,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Cloud,
+  CloudOff,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Copy,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 import { storage, getTodayDateString } from '../services/storageService';
+import type { CloudConnectionResult } from '../services/firebaseService';
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -31,13 +37,29 @@ export const SettingsModal: React.FC = () => {
     showToast,
     transactions,
     deleteTransactionsBetween,
-    deleteTransactionsByMonth
+    deleteTransactionsByMonth,
+    isCloudConnected,
+    cloudStatus,
+    cloudErrorMessage,
+    lastCloudSync,
+    firebaseProjectId,
+    testCloudConnection,
+    syncAllToCloud,
+    pullAllFromCloud,
   } = useApp();
 
   const [formData, setFormData] = useState<BusinessConfig>(config);
   const [newIncomeCat, setNewIncomeCat] = useState('');
   const [newExpenseCat, setNewExpenseCat] = useState('');
+  const [newUpiAcc, setNewUpiAcc] = useState('');
   const [activeTab, setActiveTab] = useState<'counters' | 'general' | 'categories' | 'passwords' | 'storage'>('counters');
+
+  // Cloud Diagnostics state
+  const [isTestingCloud, setIsTestingCloud] = useState(false);
+  const [testResult, setTestResult] = useState<CloudConnectionResult | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [copiedRules, setCopiedRules] = useState(false);
 
   // Purge state
   const [purgeStartDate, setPurgeStartDate] = useState('');
@@ -105,6 +127,66 @@ export const SettingsModal: React.FC = () => {
     };
     setFormData(updated);
     updateConfig(updated);
+  };
+
+  const handleAddUpiAccount = () => {
+    if (!newUpiAcc.trim()) return;
+    const existing = formData.upiAccounts || [];
+    if (existing.includes(newUpiAcc.trim())) return;
+    const updated = {
+      ...formData,
+      upiAccounts: [...existing, newUpiAcc.trim()],
+    };
+    setFormData(updated);
+    updateConfig(updated);
+    setNewUpiAcc('');
+  };
+
+  const handleRemoveUpiAccount = (acc: string) => {
+    const existing = formData.upiAccounts || [];
+    const updated = {
+      ...formData,
+      upiAccounts: existing.filter(a => a !== acc),
+    };
+    setFormData(updated);
+    updateConfig(updated);
+  };
+
+  const handleTestCloud = async () => {
+    setIsTestingCloud(true);
+    try {
+      const res = await testCloudConnection();
+      setTestResult(res);
+    } catch (e: any) {
+      setTestResult({
+        success: false,
+        status: 'error',
+        message: e?.message || 'Failed to execute test',
+        projectId: firebaseProjectId,
+      });
+    } finally {
+      setIsTestingCloud(false);
+    }
+  };
+
+  const handleSyncAllToCloud = async () => {
+    setIsSyncing(true);
+    await syncAllToCloud();
+    setIsSyncing(false);
+  };
+
+  const handlePullAllFromCloud = async () => {
+    setIsPulling(true);
+    await pullAllFromCloud();
+    setIsPulling(false);
+  };
+
+  const handleCopyRules = () => {
+    const rulesText = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+    navigator.clipboard.writeText(rulesText);
+    setCopiedRules(true);
+    showToast('Firestore Rules copied to clipboard!');
+    setTimeout(() => setCopiedRules(false), 3000);
   };
 
   const exportTransactionsToExcel = (txList: Transaction[], fileName: string) => {
@@ -298,11 +380,21 @@ export const SettingsModal: React.FC = () => {
         <button
           type="button"
           className={`nav-tab-btn ${activeTab === 'storage' ? 'active' : ''}`}
-          style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem' }}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.55rem', position: 'relative' }}
           onClick={() => setActiveTab('storage')}
         >
-          <Database size={13} />
-          <span>Backup & Purge</span>
+          <Cloud size={13} />
+          <span>Cloud & Backup</span>
+          <span
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: isCloudConnected ? '#10b981' : '#ef4444',
+              display: 'inline-block',
+              marginLeft: '2px',
+            }}
+          />
         </button>
       </div>
 
@@ -394,15 +486,15 @@ export const SettingsModal: React.FC = () => {
           </form>
         )}
 
-        {/* 3. CATEGORIES TAB */}
+        {/* 3. CATEGORIES / HEADS TAB */}
         {activeTab === 'categories' && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
-              {/* Income Categories */}
+              {/* Receive Categories / Heads */}
               <div style={{ background: '#f8fafc', padding: '0.65rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                   <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#166534' }}>
-                    + Income Categories ({formData.incomeCategories.length})
+                    + Receive Heads / Categories ({formData.incomeCategories.length})
                   </h4>
                 </div>
                 <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.55rem' }}>
@@ -410,7 +502,7 @@ export const SettingsModal: React.FC = () => {
                     type="text"
                     className="form-input"
                     style={{ fontSize: '0.775rem', padding: '0.35rem 0.55rem' }}
-                    placeholder="New category..."
+                    placeholder="New receive head..."
                     value={newIncomeCat}
                     onChange={e => setNewIncomeCat(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddIncomeCategory())}
@@ -453,11 +545,11 @@ export const SettingsModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Expense Categories */}
+              {/* Expense Categories / Heads */}
               <div style={{ background: '#f8fafc', padding: '0.65rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                   <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#991b1b' }}>
-                    − Expense Categories ({formData.expenseCategories.length})
+                    − Expense Heads / Categories ({formData.expenseCategories.length})
                   </h4>
                 </div>
                 <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.55rem' }}>
@@ -499,6 +591,62 @@ export const SettingsModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleRemoveExpenseCategory(cat)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* UPI Accounts / QRs */}
+              <div style={{ background: '#eff6ff', padding: '0.65rem', borderRadius: '8px', border: '1px solid #bfdbfe', gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e40af' }}>
+                    💳 UPI Accounts & QRs ({(formData.upiAccounts || []).length})
+                  </h4>
+                  <span style={{ fontSize: '0.675rem', color: '#3b82f6' }}>Shown when cashier selects UPI</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.55rem', maxWidth: '380px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ fontSize: '0.775rem', padding: '0.35rem 0.55rem', background: '#ffffff' }}
+                    placeholder="e.g. yourname@iob, merchant@upi..."
+                    value={newUpiAcc}
+                    onChange={e => setNewUpiAcc(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddUpiAccount())}
+                  />
+                  <button
+                    type="button"
+                    className="btn-fast-income"
+                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', flexShrink: 0, background: '#2563eb', boxShadow: 'none' }}
+                    onClick={handleAddUpiAccount}
+                  >
+                    <Plus size={14} />
+                    <span>Add</span>
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', maxHeight: '180px', overflowY: 'auto' }}>
+                  {(formData.upiAccounts || []).map(acc => (
+                    <span
+                      key={acc}
+                      className="badge badge-online"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.2rem 0.45rem',
+                        fontSize: '0.7rem',
+                        borderRadius: '6px',
+                        background: '#ffffff',
+                      }}
+                    >
+                      {acc}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveUpiAccount(acc)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
                       >
                         ×
@@ -553,33 +701,253 @@ export const SettingsModal: React.FC = () => {
           </form>
         )}
 
-        {/* 5. DATA, BACKUP & PURGE */}
+        {/* 5. DATA, CLOUD DATABASE, BACKUP & PURGE */}
         {activeTab === 'storage' && (
           <div>
-            {/* Storage Mode Status */}
+            {/* FIREBASE CLOUD DATABASE & SYNC HUB */}
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '8px',
-                border: '1px solid #e2e8f0',
-                background: '#f8fafc',
-                marginBottom: '0.75rem',
-                flexWrap: 'wrap',
-                gap: '0.35rem',
+                background: isCloudConnected ? 'linear-gradient(to bottom right, #f0fdf4, #ffffff)' : '#fffbeb',
+                border: `1px solid ${isCloudConnected ? '#86efac' : '#fde68a'}`,
+                borderRadius: '10px',
+                padding: '0.85rem',
+                marginBottom: '0.85rem',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <HardDrive size={15} style={{ color: '#2563eb' }} />
-                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>Local Storage Active</span>
-                <span className="badge badge-income" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem' }}>✓ Fast Offline</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: isCloudConnected ? '#dcfce7' : '#fef3c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: isCloudConnected ? '#16a34a' : '#d97706',
+                    }}
+                  >
+                    {isCloudConnected ? <Cloud size={18} /> : <CloudOff size={18} />}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#0f172a' }}>Firebase Cloud Database</span>
+                      <span
+                        style={{
+                          fontSize: '0.625rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '999px',
+                          background: isCloudConnected ? '#dcfce7' : cloudStatus === 'connecting' ? '#e0f2fe' : '#fee2e2',
+                          color: isCloudConnected ? '#15803d' : cloudStatus === 'connecting' ? '#0369a1' : '#b91c1c',
+                        }}
+                      >
+                        {isCloudConnected ? '● Online & Synced' : cloudStatus === 'connecting' ? 'Connecting...' : '● Cloud Setup Needed'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                      Project: <code style={{ fontWeight: 700, color: '#2563eb' }}>{firebaseProjectId}</code>
+                      {lastCloudSync && (
+                        <span> • Last synced: {new Date(lastCloudSync).toLocaleTimeString()}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cloud Action Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.725rem',
+                      fontWeight: 700,
+                      color: '#334155',
+                      cursor: 'pointer',
+                    }}
+                    onClick={handleTestCloud}
+                    disabled={isTestingCloud}
+                  >
+                    <Activity size={12} className={isTestingCloud ? 'animate-spin' : ''} />
+                    <span>{isTestingCloud ? 'Testing...' : 'Test Connection'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '6px',
+                      background: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '0.725rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    onClick={handleSyncAllToCloud}
+                    disabled={isSyncing}
+                  >
+                    <Upload size={12} className={isSyncing ? 'animate-spin' : ''} />
+                    <span>{isSyncing ? 'Syncing...' : 'Push to Cloud'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      border: '1px solid #93c5fd',
+                      fontSize: '0.725rem',
+                      fontWeight: 700,
+                      color: '#1d4ed8',
+                      cursor: 'pointer',
+                    }}
+                    onClick={handlePullAllFromCloud}
+                    disabled={isPulling}
+                  >
+                    <Download size={12} className={isPulling ? 'animate-spin' : ''} />
+                    <span>{isPulling ? 'Pulling...' : 'Pull from Cloud'}</span>
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: '#64748b' }}>
-                <Flame size={13} style={{ color: '#d97706' }} />
-                <span>Cloud Sync (Firebase Ready)</span>
-              </div>
+
+              {/* Current Cloud Notice Banner */}
+              {!testResult && cloudErrorMessage && (
+                <div
+                  style={{
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '6px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    marginBottom: '0.55rem',
+                    fontSize: '0.725rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#991b1b' }}>
+                    <XCircle size={14} />
+                    <span>Cloud Connection Status: {cloudStatus}</span>
+                  </div>
+                  <div style={{ marginTop: '0.25rem', color: '#64748b', fontSize: '0.675rem' }}>
+                    {cloudErrorMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* Diagnostic Test Result Banner */}
+              {testResult && (
+                <div
+                  style={{
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '6px',
+                    background: testResult.success ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${testResult.success ? '#bbf7d0' : '#fecaca'}`,
+                    marginBottom: '0.55rem',
+                    fontSize: '0.725rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: testResult.success ? '#166534' : '#991b1b' }}>
+                    {testResult.success ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                    <span>{testResult.message}</span>
+                  </div>
+                  {testResult.details && (
+                    <div style={{ marginTop: '0.25rem', color: '#64748b', fontSize: '0.675rem' }}>
+                      {testResult.details}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Firestore Setup Guide (Shown if not connected or error) */}
+              {!isCloudConnected && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fed7aa',
+                    borderRadius: '8px',
+                    padding: '0.65rem 0.75rem',
+                    marginTop: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800, fontSize: '0.775rem', color: '#c2410c', marginBottom: '0.3rem' }}>
+                    <ShieldAlert size={14} />
+                    <span>One-Time Firebase Console Activation Guide</span>
+                  </div>
+                  <p style={{ fontSize: '0.7rem', color: '#7c2d12', marginBottom: '0.45rem', lineHeight: 1.4 }}>
+                    If you haven't enabled Cloud Firestore database in your Firebase Console yet, follow these 2 quick steps:
+                  </p>
+                  
+                  <ol style={{ fontSize: '0.685rem', color: '#475569', paddingLeft: '1.2rem', margin: '0 0 0.5rem 0', lineHeight: 1.5 }}>
+                    <li>
+                      Open Firebase Console:{' '}
+                      <a
+                        href={`https://console.firebase.google.com/project/${firebaseProjectId}/firestore`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                      >
+                        Create Firestore Database for {firebaseProjectId} <ExternalLink size={10} />
+                      </a>
+                    </li>
+                    <li>
+                      Click <strong>"Create Database"</strong> → Choose nearest region (e.g. <code>asia-south1</code>) → Start in <strong>Test Mode</strong> (or Production Mode).
+                    </li>
+                    <li>
+                      Under the <strong>Rules</strong> tab, paste the open rules below and click <strong>Publish</strong>:
+                    </li>
+                  </ol>
+
+                  {/* Rules Code Snippet Box */}
+                  <div style={{ position: 'relative', background: '#0f172a', borderRadius: '6px', padding: '0.5rem 0.65rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleCopyRules}
+                      style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '6px',
+                        background: '#334155',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: '#f8fafc',
+                        padding: '0.2rem 0.45rem',
+                        fontSize: '0.625rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {copiedRules ? <Check size={11} color="#4ade80" /> : <Copy size={11} />}
+                      <span>{copiedRules ? 'Copied!' : 'Copy Rules'}</span>
+                    </button>
+                    <pre style={{ margin: 0, fontSize: '0.65rem', color: '#e2e8f0', fontFamily: 'monospace', overflowX: 'auto', lineHeight: 1.35 }}>
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* BACKUP & EXPORT SECTION */}

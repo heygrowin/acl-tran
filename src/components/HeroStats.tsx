@@ -7,36 +7,42 @@ import {
   AlertTriangle,
   HelpCircle,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Calendar
 } from 'lucide-react';
 import { formatCurrency } from '../services/storageService';
 
 export const HeroStats: React.FC = () => {
-  const { dayBalances, config, openClosingModal } = useApp();
+  const { dayBalances, config, openClosingModal, selectedDate } = useApp();
   const closing = dayBalances.closing;
 
   // Compute status for closing & reconciliation
   let matchStatus: 'balanced' | 'shortage' | 'excess' | 'pending' = 'pending';
-  let matchMessage = 'Closing Pending';
+  let statusLabel = 'Pending';
   let diffAmount = 0;
 
   if (closing) {
     diffAmount = closing.cashDifference + closing.onlineDifference;
     if (closing.status === 'balanced' || diffAmount === 0) {
       matchStatus = 'balanced';
-      matchMessage = '✓ Money Matched';
+      statusLabel = 'Verified';
     } else if (diffAmount < 0) {
       matchStatus = 'shortage';
-      matchMessage = `⚠️ Shortage: ${formatCurrency(Math.abs(diffAmount), config.currency)}`;
+      statusLabel = `Shortage (${formatCurrency(Math.abs(diffAmount), config.currency)})`;
     } else {
       matchStatus = 'excess';
-      matchMessage = `🟢 Excess: +${formatCurrency(diffAmount, config.currency)}`;
+      statusLabel = `Excess (+${formatCurrency(diffAmount), config.currency})`;
     }
   }
 
+  const formattedDate = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  });
+
   return (
     <section className="hero-compact-section" style={{ marginBottom: '0.5rem' }}>
-      {/* Sleek Apple-style 2-Column Unified Card: Left = Income, Right = Expense */}
+      {/* Sleek 2-Column Card: Left = Receive (+), Right = Expense (−) */}
       <div
         className="card"
         style={{
@@ -50,11 +56,11 @@ export const HeroStats: React.FC = () => {
           boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
         }}
       >
-        {/* LEFT: INCOME (+) */}
+        {/* LEFT: RECEIVE (+) */}
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
             <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#166534' }}>
-              + Income
+              + Receive
             </span>
             <TrendingUp size={13} style={{ color: '#16a34a' }} />
           </div>
@@ -147,30 +153,41 @@ export const HeroStats: React.FC = () => {
         onClick={openClosingModal}
         title="Click to perform or view End-of-Day Closing"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
-          {matchStatus === 'balanced' && <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0 }} />}
-          {matchStatus === 'shortage' && <AlertTriangle size={14} style={{ color: '#dc2626', flexShrink: 0 }} />}
-          {matchStatus === 'excess' && <Sparkles size={14} style={{ color: '#16a34a', flexShrink: 0 }} />}
-          {matchStatus === 'pending' && <HelpCircle size={14} style={{ color: '#2563eb', flexShrink: 0 }} />}
-
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontWeight: 800,
-                  fontSize: '0.725rem',
-                  color: closing
-                    ? (closing.status === 'balanced' ? '#166534' : '#991b1b')
-                    : '#1e40af',
-                }}
-              >
-                {matchMessage}
-              </span>
-              <span style={{ fontSize: '0.625rem', color: '#64748b' }}>
-                (Drawer: <strong>{formatCurrency(dayBalances.expectedCash, config.currency)}</strong> • Online: <strong>{formatCurrency(dayBalances.expectedOnline, config.currency)}</strong>)
-              </span>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flexWrap: 'wrap' }}>
+          {/* Date Label */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.725rem', fontWeight: 700, color: '#334155' }}>
+            <Calendar size={12} style={{ color: '#2563eb' }} />
+            <span>{formattedDate}:</span>
           </div>
+
+          {/* Status Badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            {matchStatus === 'balanced' && (
+              <span className="badge badge-income" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', fontWeight: 800 }}>
+                <CheckCircle2 size={11} style={{ marginRight: '0.2rem' }} /> Verified
+              </span>
+            )}
+            {matchStatus === 'shortage' && (
+              <span className="badge badge-expense" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', fontWeight: 800 }}>
+                <AlertTriangle size={11} style={{ marginRight: '0.2rem' }} /> {statusLabel}
+              </span>
+            )}
+            {matchStatus === 'excess' && (
+              <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.65rem', padding: '0.1rem 0.4rem', fontWeight: 800 }}>
+                <Sparkles size={11} style={{ marginRight: '0.2rem' }} /> {statusLabel}
+              </span>
+            )}
+            {matchStatus === 'pending' && (
+              <span className="badge badge-warning" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', fontWeight: 800 }}>
+                <HelpCircle size={11} style={{ marginRight: '0.2rem' }} /> Pending
+              </span>
+            )}
+          </div>
+
+          {/* Live Drawer Cash & Online Summary */}
+          <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+            (Drawer: <strong>{formatCurrency(dayBalances.expectedCash, config.currency)}</strong> • Online: <strong>{formatCurrency(dayBalances.expectedOnline, config.currency)}</strong>)
+          </span>
         </div>
 
         <button
@@ -190,11 +207,10 @@ export const HeroStats: React.FC = () => {
             cursor: 'pointer',
           }}
         >
-          <span>{closing ? 'View' : 'Close Day'}</span>
+          <span>{closing ? 'View Slip' : 'Close Day'}</span>
           <ArrowRight size={10} />
         </button>
       </div>
     </section>
   );
 };
-

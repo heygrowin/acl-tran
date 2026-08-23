@@ -15,16 +15,18 @@ import {
   LogOut,
   Search,
   Zap,
-  Clock,
   Columns,
   List,
-  HandCoins
+  HandCoins,
+  Check,
+  X
 } from 'lucide-react';
-import { formatCurrency } from '../services/storageService';
+import { formatCurrency, storage } from '../services/storageService';
 
 export const EmployeeScreen: React.FC = () => {
   const {
     config,
+    updateConfig,
     selectedMember,
     logoutToLanding,
     dayBalances,
@@ -33,6 +35,10 @@ export const EmployeeScreen: React.FC = () => {
     openClosingModal,
     deleteTransaction,
     loans,
+    isCloudConnected,
+    selectedDate,
+    refreshData,
+    showToast,
   } = useApp();
 
   const [employeeTab, setEmployeeTab] = useState<'counter' | 'loans'>('counter');
@@ -40,7 +46,25 @@ export const EmployeeScreen: React.FC = () => {
   const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'upi' | 'rtgs'>('all');
   const [viewMode, setViewMode] = useState<'split' | 'list'>('split');
 
+  // Inline Opening Balance state
+  const [isEditingOpening, setIsEditingOpening] = useState(false);
+  const [editCash, setEditCash] = useState(dayBalances.openingCash.toString());
+  const [editOnline, setEditOnline] = useState(dayBalances.openingOnline.toString());
+  const [setAsDefault, setSetAsDefault] = useState(true);
+
   const pendingLoansCount = loans.filter(l => l.pendingAmount > 0).length;
+
+  // Calculate breakdown per UPI account from today's transactions
+  const upiBreakdown = todayTransactions
+    .filter(t => t.paymentMethod.toLowerCase() === 'upi' && t.paymentAccount)
+    .reduce<Record<string, number>>((acc, t) => {
+      const acct = t.paymentAccount!;
+      const diff = t.type === 'income' ? t.amount : -t.amount;
+      acc[acct] = (acc[acct] || 0) + diff;
+      return acc;
+    }, {});
+
+  const upiEntries = Object.entries(upiBreakdown);
 
   // Filter today's transactions
   const filteredTxs = todayTransactions.filter(t => {
@@ -49,19 +73,16 @@ export const EmployeeScreen: React.FC = () => {
       const q = searchTerm.toLowerCase();
       const matchCat = t.category.toLowerCase().includes(q);
       const matchNote = t.note?.toLowerCase().includes(q);
-      const matchCust = t.customerName?.toLowerCase().includes(q) || t.borrowerName?.toLowerCase().includes(q);
+      const matchPhone = t.customerPhone?.toLowerCase().includes(q) || t.borrowerPhone?.toLowerCase().includes(q);
       const matchAmt = t.amount.toString().includes(q);
-      return matchCat || matchNote || matchCust || matchAmt;
+      return matchCat || matchNote || matchPhone || matchAmt;
     }
     return true;
   });
 
-  // Income FIRST (Left), Expense SECOND (Right)
+  // Receive FIRST (Left), Expense SECOND (Right)
   const incomeTxs = filteredTxs.filter(t => t.type === 'income');
   const expenseTxs = filteredTxs.filter(t => t.type === 'expense');
-
-  const totalFilteredIncome = incomeTxs.reduce((sum, t) => sum + t.amount, 0);
-  const totalFilteredExpense = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
   const handleDelete = (id: string, amt: number) => {
     if (confirm(`Remove this entry of ₹${amt.toLocaleString()}?`)) {
@@ -71,6 +92,32 @@ export const EmployeeScreen: React.FC = () => {
 
   const handleEdit = (tx: (typeof todayTransactions)[0]) => {
     openCounterModal(tx.type, tx);
+  };
+
+  const handleStartEditOpening = () => {
+    setEditCash(dayBalances.openingCash.toString());
+    setEditOnline(dayBalances.openingOnline.toString());
+    setSetAsDefault(true);
+    setIsEditingOpening(true);
+  };
+
+  const handleSaveOpening = () => {
+    const cashNum = parseFloat(editCash) || 0;
+    const onlineNum = parseFloat(editOnline) || 0;
+
+    storage.setOpeningBalances(selectedDate, cashNum, onlineNum);
+
+    if (setAsDefault) {
+      updateConfig({
+        ...config,
+        defaultOpeningCash: cashNum,
+        defaultOpeningOnline: onlineNum,
+      });
+    }
+
+    refreshData();
+    setIsEditingOpening(false);
+    showToast(setAsDefault ? 'Opening balances saved and set as default!' : 'Opening balances saved for today!');
   };
 
   return (
@@ -100,6 +147,24 @@ export const EmployeeScreen: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
               <span className="badge badge-online" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
                 👤 {selectedMember}
+              </span>
+              <span
+                style={{
+                  background: isCloudConnected ? '#dcfce7' : '#fee2e2',
+                  border: `1px solid ${isCloudConnected ? '#86efac' : '#fecaca'}`,
+                  color: isCloudConnected ? '#15803d' : '#991b1b',
+                  fontSize: '0.625rem',
+                  fontWeight: 700,
+                  padding: '0.05rem 0.35rem',
+                  borderRadius: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                }}
+                title={isCloudConnected ? 'Connected to Firebase Cloud' : 'Cloud Setup Required'}
+              >
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isCloudConnected ? '#16a34a' : '#dc2626' }} />
+                <span>{isCloudConnected ? 'Cloud Synced' : 'Offline / Local'}</span>
               </span>
               <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
                 {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -165,7 +230,7 @@ export const EmployeeScreen: React.FC = () => {
         <LoanManager />
       ) : (
         <>
-          {/* Sleek Apple-style 2-Column Unified Summary: Row 1 Flow, Row 2 Balances */}
+          {/* Sleek 2-Column Summary: Row 1 Flow (Receive vs Expense), Row 2 Balances (Cash vs Online) */}
           <div
             className="card"
             style={{
@@ -176,7 +241,7 @@ export const EmployeeScreen: React.FC = () => {
               boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
             }}
           >
-            {/* ROW 1: INCOME (+) LEFT vs EXPENSE (−) RIGHT */}
+            {/* ROW 1: RECEIVE (+) LEFT vs EXPENSE (−) RIGHT */}
             <div
               style={{
                 display: 'grid',
@@ -186,10 +251,10 @@ export const EmployeeScreen: React.FC = () => {
                 borderBottom: '1px solid #f1f5f9',
               }}
             >
-              {/* Left: Income */}
+              {/* Left: Receive */}
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.1rem' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#166534' }}>+ Income</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#166534' }}>+ Receive</span>
                   <TrendingUp size={12} style={{ color: '#16a34a' }} />
                 </div>
                 <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#16a34a', lineHeight: 1.15, margin: '0.1rem 0' }}>
@@ -235,6 +300,16 @@ export const EmployeeScreen: React.FC = () => {
                     <Wallet size={12} style={{ color: '#d97706' }} />
                     <span>Cash</span>
                   </div>
+                  {!isEditingOpening && (
+                    <button
+                      className="icon-btn"
+                      style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
+                      onClick={handleStartEditOpening}
+                      title="Edit Opening Balances"
+                    >
+                      <Edit2 size={9} style={{ color: '#94a3b8' }} />
+                    </button>
+                  )}
                 </div>
                 <div className="font-mono" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#b45309', lineHeight: 1.15 }}>
                   {formatCurrency(dayBalances.expectedCash, config.currency)}
@@ -251,6 +326,16 @@ export const EmployeeScreen: React.FC = () => {
                     <Globe size={12} style={{ color: '#2563eb' }} />
                     <span>Online</span>
                   </div>
+                  {!isEditingOpening && (
+                    <button
+                      className="icon-btn"
+                      style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
+                      onClick={handleStartEditOpening}
+                      title="Edit Opening Balances"
+                    >
+                      <Edit2 size={9} style={{ color: '#94a3b8' }} />
+                    </button>
+                  )}
                 </div>
                 <div className="font-mono" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1d4ed8', lineHeight: 1.15 }}>
                   {formatCurrency(dayBalances.expectedOnline, config.currency)}
@@ -258,11 +343,113 @@ export const EmployeeScreen: React.FC = () => {
                 <div style={{ fontSize: '0.6rem', color: '#64748b' }}>
                   UPI & Bank total
                 </div>
+
+                {/* Specific UPI Account Breakdown Row */}
+                {upiEntries.length > 0 && (
+                  <div style={{ fontSize: '0.575rem', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '0.15rem' }}>
+                    💳 {upiEntries.map(([acc, amt]) => `${acc}: ${formatCurrency(amt, config.currency)}`).join(' • ')}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Dual Action Buttons: + Income (Left) & − Expense (Right) */}
+          {/* Inline Opening Balance Editor in Employee View */}
+          {isEditingOpening && (
+            <div
+              className="card animate-scale-in"
+              style={{
+                background: '#eff6ff',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '6px',
+                border: '1.5px solid #bfdbfe',
+                marginBottom: '0.45rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.55rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e40af' }}>
+                Set Opening Balances:
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 600 }}>Cash:</span>
+                <input
+                  type="number"
+                  className="form-input font-mono"
+                  style={{ width: '85px', padding: '0.2rem 0.4rem', fontSize: '0.775rem' }}
+                  value={editCash}
+                  onChange={e => setEditCash(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 600 }}>Online:</span>
+                <input
+                  type="number"
+                  className="form-input font-mono"
+                  style={{ width: '85px', padding: '0.2rem 0.4rem', fontSize: '0.775rem' }}
+                  value={editOnline}
+                  onChange={e => setEditOnline(e.target.value)}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.675rem', color: '#1e40af', fontWeight: 600, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={setAsDefault}
+                  onChange={e => setSetAsDefault(e.target.checked)}
+                />
+                <span>Set as default for all days</span>
+              </label>
+
+              <div style={{ display: 'flex', gap: '0.25rem', marginLeft: 'auto' }}>
+                <button
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.2rem',
+                    padding: '0.25rem 0.55rem',
+                    background: '#16a34a',
+                    color: '#fff',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    border: 'none',
+                  }}
+                  onClick={handleSaveOpening}
+                >
+                  <Check size={11} />
+                  <span>Save</span>
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.2rem',
+                    padding: '0.25rem 0.55rem',
+                    background: '#ffffff',
+                    color: '#64748b',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setIsEditingOpening(false)}
+                >
+                  <X size={11} />
+                  <span>Cancel</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Dual Action Buttons: + Receive (Left) & − Expense (Right) */}
           <div
             style={{
               display: 'grid',
@@ -278,7 +465,7 @@ export const EmployeeScreen: React.FC = () => {
               style={{ padding: '0.65rem', fontSize: '0.925rem', background: '#16a34a', boxShadow: 'none' }}
             >
               <PlusCircle size={18} />
-              <span>+ Income</span>
+              <span>+ Receive</span>
             </button>
 
             <button
@@ -292,7 +479,7 @@ export const EmployeeScreen: React.FC = () => {
             </button>
           </div>
 
-          {/* Today's Transactions Log (Two-Column Split View: Left = Income, Right = Expense) */}
+          {/* Today's Transactions Log (Two-Column Split View: Left = Receive, Right = Expense) */}
           <div className="card" style={{ padding: '0.55rem 0.75rem' }}>
             {/* Controls Row */}
             <div
@@ -321,7 +508,7 @@ export const EmployeeScreen: React.FC = () => {
                     className={`nav-tab-btn ${viewMode === 'split' ? 'active' : ''}`}
                     style={{ fontSize: '0.675rem', padding: '0.15rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
                     onClick={() => setViewMode('split')}
-                    title="Split View: Left Income | Right Expense"
+                    title="Split View: Left Receive | Right Expense"
                   >
                     <Columns size={11} />
                     <span>Split</span>
@@ -360,13 +547,13 @@ export const EmployeeScreen: React.FC = () => {
                 type="text"
                 className="form-input"
                 style={{ paddingLeft: '1.9rem', width: '100%', fontSize: '0.775rem', padding: '0.35rem 0.55rem 0.35rem 1.9rem' }}
-                placeholder="Search note, category, person, amount..."
+                placeholder="Search note, head, phone, amount..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
 
-            {/* TWO-COLUMN SPLIT VIEW: Left = Income, Right = Expense */}
+            {/* TWO-COLUMN SPLIT VIEW: Left = Receive, Right = Expense */}
             {viewMode === 'split' ? (
               <div
                 style={{
@@ -375,7 +562,7 @@ export const EmployeeScreen: React.FC = () => {
                   gap: '0.45rem',
                 }}
               >
-                {/* LEFT COLUMN: INCOME (+) */}
+                {/* LEFT COLUMN: RECEIVE */}
                 <div
                   style={{
                     background: '#f0fdf4',
@@ -391,30 +578,34 @@ export const EmployeeScreen: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      paddingBottom: '0.35rem',
+                      paddingBottom: '0.3rem',
                       borderBottom: '1px solid #bbf7d0',
                       marginBottom: '0.4rem',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <TrendingUp size={14} style={{ color: '#16a34a' }} />
-                      <span style={{ fontWeight: 800, fontSize: '0.775rem', color: '#166534' }}>
-                        Income (+) ({incomeTxs.length})
+                      <span className="badge badge-income" style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', fontWeight: 800 }}>
+                        +{incomeTxs.length}
                       </span>
                     </div>
-                    <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.85rem', color: '#16a34a' }}>
-                      +{formatCurrency(totalFilteredIncome, config.currency)}
-                    </span>
+                    <div className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#16a34a' }}>
+                      +{formatCurrency(incomeTxs.reduce((s, t) => s + t.amount, 0), config.currency)}
+                    </div>
                   </div>
 
                   {incomeTxs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '1rem 0.5rem', color: '#94a3b8', fontSize: '0.75rem' }}>
-                      No income entries
+                    <div style={{ textAlign: 'center', padding: '1.25rem 0.5rem', color: '#86efac', fontSize: '0.75rem' }}>
+                      No receive entries yet
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '300px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
                       {incomeTxs.map(tx => {
-                        const method = tx.paymentMethod.toUpperCase();
+                        const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                        const displayMethod = isUpi
+                          ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                          : tx.paymentMethod.toUpperCase();
+
                         return (
                           <div
                             key={tx.id}
@@ -430,21 +621,27 @@ export const EmployeeScreen: React.FC = () => {
                             }}
                           >
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.775rem', color: '#0f172a' }}>{tx.category}</span>
-                                <span className="badge badge-income" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
-                                  {method}
+                              {/* Primary: Head Name */}
+                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25 }}>
+                                {tx.category || 'Receive'}
+                              </div>
+
+                              {/* Details: Made by + Payment Method + Note + Phone */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                                <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                                  👤 {tx.staffName || selectedMember || 'Counter 1'}
+                                </span>
+                                <span>•</span>
+                                <span className="badge badge-income" style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>
+                                  {displayMethod}
                                 </span>
                                 {tx.isLoan && (
                                   <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
                                     🤝 Repaid
                                   </span>
                                 )}
-                              </div>
-                              <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <span>{tx.time}</span>
-                                {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
-                                {tx.note && <span> • "{tx.note}"</span>}
+                                {tx.note && <span style={{ color: '#64748b' }}>• "{tx.note}"</span>}
+                                {(tx.customerPhone || tx.borrowerPhone) && <span style={{ color: '#64748b' }}>• 📞 {tx.customerPhone || tx.borrowerPhone}</span>}
                               </div>
                             </div>
 
@@ -480,7 +677,7 @@ export const EmployeeScreen: React.FC = () => {
                   )}
                 </div>
 
-                {/* RIGHT COLUMN: EXPENSE (-) */}
+                {/* RIGHT COLUMN: EXPENSE */}
                 <div
                   style={{
                     background: '#fef2f2',
@@ -496,30 +693,34 @@ export const EmployeeScreen: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      paddingBottom: '0.35rem',
+                      paddingBottom: '0.3rem',
                       borderBottom: '1px solid #fecaca',
                       marginBottom: '0.4rem',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <TrendingDown size={14} style={{ color: '#dc2626' }} />
-                      <span style={{ fontWeight: 800, fontSize: '0.775rem', color: '#991b1b' }}>
-                        Expense (−) ({expenseTxs.length})
+                      <span className="badge badge-expense" style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', fontWeight: 800 }}>
+                        -{expenseTxs.length}
                       </span>
                     </div>
-                    <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.85rem', color: '#dc2626' }}>
-                      -{formatCurrency(totalFilteredExpense, config.currency)}
-                    </span>
+                    <div className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>
+                      -{formatCurrency(expenseTxs.reduce((s, t) => s + t.amount, 0), config.currency)}
+                    </div>
                   </div>
 
                   {expenseTxs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '1rem 0.5rem', color: '#94a3b8', fontSize: '0.75rem' }}>
-                      No expense entries
+                    <div style={{ textAlign: 'center', padding: '1.25rem 0.5rem', color: '#fca5a5', fontSize: '0.75rem' }}>
+                      No expense entries yet
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '300px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
                       {expenseTxs.map(tx => {
-                        const method = tx.paymentMethod.toUpperCase();
+                        const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                        const displayMethod = isUpi
+                          ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                          : tx.paymentMethod.toUpperCase();
+
                         return (
                           <div
                             key={tx.id}
@@ -535,21 +736,27 @@ export const EmployeeScreen: React.FC = () => {
                             }}
                           >
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.775rem', color: '#0f172a' }}>{tx.category}</span>
-                                <span className="badge badge-expense" style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
-                                  {method}
+                              {/* Primary: Head Name */}
+                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25 }}>
+                                {tx.category || 'Expense'}
+                              </div>
+
+                              {/* Details: Made by + Payment Method + Note + Phone */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                                <span style={{ fontWeight: 700, color: '#1e293b' }}>
+                                  👤 {tx.staffName || selectedMember || 'Counter 1'}
+                                </span>
+                                <span>•</span>
+                                <span className="badge badge-expense" style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>
+                                  {displayMethod}
                                 </span>
                                 {tx.isLoan && (
                                   <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
                                     🤝 Given
                                   </span>
                                 )}
-                              </div>
-                              <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <span>{tx.time}</span>
-                                {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
-                                {tx.note && <span> • "{tx.note}"</span>}
+                                {tx.note && <span style={{ color: '#64748b' }}>• "{tx.note}"</span>}
+                                {(tx.customerPhone || tx.borrowerPhone) && <span style={{ color: '#64748b' }}>• 📞 {tx.customerPhone || tx.borrowerPhone}</span>}
                               </div>
                             </div>
 
@@ -586,68 +793,46 @@ export const EmployeeScreen: React.FC = () => {
                 </div>
               </div>
             ) : (
-              /* SINGLE LIST VIEW */
+              /* Single List View Mode */
               filteredTxs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1.25rem 1rem', color: '#64748b' }}>
-                  <Clock size={20} style={{ color: '#94a3b8', marginBottom: '0.2rem' }} />
-                  <div style={{ fontWeight: 600, fontSize: '0.8rem' }}>No entries found.</div>
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  No transactions recorded for today yet
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: '300px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
                   {filteredTxs.map(tx => {
                     const isIncome = tx.type === 'income';
-                    const method = tx.paymentMethod.toUpperCase();
+                    const isUpi = tx.paymentMethod.toLowerCase() === 'upi';
+                    const displayMethod = isUpi
+                      ? (tx.paymentAccount ? `UPI (${tx.paymentAccount})` : 'UPI')
+                      : tx.paymentMethod.toUpperCase();
+
                     return (
                       <div
                         key={tx.id}
                         style={{
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '5px',
-                          background: '#f8fafc',
-                          border: tx.isLoan ? '1px solid #fed7aa' : '1px solid #e2e8f0',
+                          padding: '0.45rem 0.6rem',
+                          borderRadius: '6px',
+                          background: isIncome ? '#f0fdf4' : '#fef2f2',
+                          border: `1px solid ${isIncome ? '#bbf7d0' : '#fecaca'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          gap: '0.4rem',
+                          gap: '0.35rem',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
-                          <div
-                            style={{
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '4px',
-                              background: isIncome ? '#f0fdf4' : '#fef2f2',
-                              color: isIncome ? '#16a34a' : '#dc2626',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {isIncome ? '+' : '−'}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a' }}>
+                            {tx.category || (isIncome ? 'Receive' : 'Expense')}
                           </div>
-
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>{tx.category}</span>
-                              <span className={`badge badge-${isIncome ? 'income' : 'expense'}`} style={{ fontSize: '0.55rem', padding: '0.05rem 0.25rem' }}>
-                                {method}
-                              </span>
-                              {tx.isLoan && (
-                                <span className="badge" style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', fontSize: '0.55rem', fontWeight: 700 }}>
-                                  🤝 {tx.loanType === 'given' ? 'Given' : 'Repaid'}
-                                </span>
-                              )}
-                            </div>
-
-                            <div style={{ fontSize: '0.675rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span>{tx.time}</span>
-                              {(tx.customerName || tx.borrowerName) && <span> • {tx.customerName || tx.borrowerName}</span>}
-                              {tx.note && <span> • "{tx.note}"</span>}
-                            </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                            <span style={{ fontWeight: 700 }}>👤 {tx.staffName || 'Staff'}</span>
+                            <span>•</span>
+                            <span className={`badge badge-${tx.type}`} style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>
+                              {displayMethod}
+                            </span>
+                            {tx.note && <span>• "{tx.note}"</span>}
+                            {(tx.customerPhone || tx.borrowerPhone) && <span>• 📞 {tx.customerPhone || tx.borrowerPhone}</span>}
                           </div>
                         </div>
 

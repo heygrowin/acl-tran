@@ -15,15 +15,37 @@ import {
   subscribeToTransactions,
   subscribeToClosings,
   subscribeToLoans,
-  subscribeToConfig
+  subscribeToConfig,
+  testCloudConnection as testCloudConnectionService,
+  fetchAllDataFromCloud,
+  pushAllLocalDataToCloud,
+  saveTransactionToCloud,
+  saveClosingToCloud,
+  saveLoanToCloud,
+  saveConfigToCloud,
+  deleteTransactionFromCloud,
+  deleteLoanFromCloud,
+  type CloudConnectionResult,
+  DEFAULT_FIREBASE_CONFIG
 } from '../services/firebaseService';
 import { sound } from '../services/audioService';
+
+export type CloudConnectionState = 'connected' | 'connecting' | 'error' | 'disabled' | 'offline';
 
 interface AppContextType {
   config: BusinessConfig;
   updateConfig: (newConfig: BusinessConfig) => void;
-  isCloudConnected: boolean;
   
+  // Cloud & Firebase Status
+  isCloudConnected: boolean;
+  cloudStatus: CloudConnectionState;
+  cloudErrorMessage: string | null;
+  lastCloudSync: number | null;
+  firebaseProjectId: string;
+  testCloudConnection: () => Promise<CloudConnectionResult>;
+  syncAllToCloud: () => Promise<{ success: boolean; totalUploaded: number; errors: number }>;
+  pullAllFromCloud: () => Promise<{ success: boolean; count: number; error?: string }>;
+
   // Navigation & Screens
   currentScreen: CurrentScreen;
   selectedMember: string;
@@ -53,6 +75,7 @@ interface AppContextType {
   updateTransaction: (tx: Transaction) => void;
   deleteTransaction: (id: string) => void;
   addCategory: (type: TransactionType, cat: string) => void;
+  addUpiAccount: (account: string) => void;
   saveClosing: (closing: Omit<DailyClosing, 'id' | 'closedAt'>) => DailyClosing;
 
   // Loan Management
@@ -91,7 +114,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedMember, setSelectedMember] = useState<string>(() => initialSession?.member || 'Admin / Owner');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
-  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
+
+  // Cloud State
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+  const [cloudStatus, setCloudStatus] = useState<CloudConnectionState>('connecting');
+  const [cloudErrorMessage, setCloudErrorMessage] = useState<string | null>(null);
+  const [lastCloudSync, setLastCloudSync] = useState<number | null>(null);
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => storage.getTransactions());
   const [closings, setClosings] = useState<DailyClosing[]>(() => storage.getClosings());
@@ -111,7 +139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(prev => (prev?.text === text ? null : prev));
-    }, 2800);
+    }, 3200);
   }, []);
 
   const refreshData = useCallback(() => {
@@ -128,22 +156,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [selectedDate, refreshData]);
 
+  // Initial Firestore Diagnostic Check on load
+  useEffect(() => {
+    let isMounted = true;
+    testCloudConnectionService().then(res => {
+      if (!isMounted) return;
+      if (res.success) {
+        setIsCloudConnected(true);
+        setCloudStatus('connected');
+        setCloudErrorMessage(null);
+        setLastCloudSync(Date.now());
+      } else {
+        setIsCloudConnected(false);
+        setCloudStatus(res.status as CloudConnectionState);
+        setCloudErrorMessage(res.details || res.message);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Real-time Cloud Sync with Firebase Firestore
   useEffect(() => {
     const bizId = config.id || 'biz_default';
+
+    const handleFirestoreError = (err: any) => {
+      setIsCloudConnected(false);
+      const errMsg = String(err?.message || err);
+      if (errMsg.includes('Cloud Firestore API has not been used') || errMsg.includes('is disabled')) {
+        setCloudStatus('disabled');
+        setCloudErrorMessage('Cloud Firestore database is disabled or not yet created in Firebase Console.');
+      } else if (errMsg.includes('permission-denied')) {
+        setCloudStatus('error');
+        setCloudErrorMessage('Firestore Permission Denied (check Security Rules in Firebase Console).');
+      } else {
+        setCloudStatus('offline');
+        setCloudErrorMessage(errMsg);
+      }
+    };
 
     // 1. Transactions Stream
     const unsubTx = subscribeToTransactions(
       bizId,
       cloudTxs => {
         setIsCloudConnected(true);
-        if (cloudTxs && cloudTxs.length > 0) {
+        setCloudStatus('connected');
+        setCloudErrorMessage(null);
+        setLastCloudSync(Date.now());
+        if (cloudTxs) {
           storage.saveTransactions(cloudTxs);
           setTransactions(cloudTxs);
           setDayBalances(storage.calculateDayBalances(selectedDate));
         }
       },
-      () => setIsCloudConnected(false)
+      handleFirestoreError
     );
 
     // 2. Closings Stream
@@ -151,14 +219,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bizId,
       cloudClosingsMap => {
         setIsCloudConnected(true);
+        setCloudStatus('connected');
+        setCloudErrorMessage(null);
+        setLastCloudSync(Date.now());
         const list = Object.values(cloudClosingsMap);
-        if (list.length > 0) {
+        if (list) {
           localStorage.setItem('acl_counter_closings_v5', JSON.stringify(list));
           setClosings(list);
           setDayBalances(storage.calculateDayBalances(selectedDate));
         }
       },
-      () => setIsCloudConnected(false)
+      handleFirestoreError
     );
 
     // 3. Loans Stream
@@ -166,12 +237,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bizId,
       cloudLoans => {
         setIsCloudConnected(true);
-        if (cloudLoans && cloudLoans.length > 0) {
+        setCloudStatus('connected');
+        setCloudErrorMessage(null);
+        setLastCloudSync(Date.now());
+        if (cloudLoans) {
           storage.saveLoans(cloudLoans);
           setLoans(cloudLoans);
         }
       },
-      () => setIsCloudConnected(false)
+      handleFirestoreError
     );
 
     // 4. Config Stream
@@ -179,6 +253,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bizId,
       cloudConfig => {
         setIsCloudConnected(true);
+        setCloudStatus('connected');
+        setCloudErrorMessage(null);
+        setLastCloudSync(Date.now());
         if (cloudConfig) {
           const localConfig = storage.getConfig();
           const mergedConfig: BusinessConfig = {
@@ -191,7 +268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setConfigState(mergedConfig);
         }
       },
-      () => setIsCloudConnected(false)
+      handleFirestoreError
     );
 
     return () => {
@@ -202,10 +279,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [config.id, selectedDate]);
 
+  // Test Cloud Connection Action
+  const testCloudConnection = async (): Promise<CloudConnectionResult> => {
+    setCloudStatus('connecting');
+    const result = await testCloudConnectionService();
+    if (result.success) {
+      setIsCloudConnected(true);
+      setCloudStatus('connected');
+      setCloudErrorMessage(null);
+      setLastCloudSync(Date.now());
+      showToast('✓ Firebase Cloud Firestore Connected & Healthy!', 'success');
+    } else {
+      setIsCloudConnected(false);
+      setCloudStatus(result.status as CloudConnectionState);
+      setCloudErrorMessage(result.details || result.message);
+      showToast(result.message, 'error');
+    }
+    return result;
+  };
+
+  // Sync all local data to Cloud
+  const syncAllToCloud = async (): Promise<{ success: boolean; totalUploaded: number; errors: number }> => {
+    try {
+      const currentData = {
+        config: storage.getConfig(),
+        transactions: storage.getTransactions(),
+        closings: storage.getClosings(),
+        loans: storage.getLoans(),
+      };
+      showToast('Syncing all local data to Firebase Cloud...', 'info');
+      const res = await pushAllLocalDataToCloud(currentData);
+      if (res.errors === 0) {
+        setIsCloudConnected(true);
+        setCloudStatus('connected');
+        setLastCloudSync(Date.now());
+        showToast(`✓ Uploaded ${res.totalUploaded} records to Firebase!`, 'success');
+        return { success: true, ...res };
+      } else {
+        showToast(`Synced ${res.totalUploaded} records (${res.errors} errors).`, 'error');
+        return { success: false, ...res };
+      }
+    } catch (e: any) {
+      showToast(`Sync failed: ${e?.message || e}`, 'error');
+      return { success: false, totalUploaded: 0, errors: 1 };
+    }
+  };
+
+  // Pull all data from Cloud
+  const pullAllFromCloud = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      showToast('Fetching latest records from Firebase Cloud...', 'info');
+      const cloudData = await fetchAllDataFromCloud(config.id || 'biz_default');
+      let count = 0;
+
+      if (cloudData.config) {
+        storage.saveConfig(cloudData.config);
+        setConfigState(cloudData.config);
+      }
+      if (cloudData.transactions && cloudData.transactions.length > 0) {
+        storage.saveTransactions(cloudData.transactions);
+        setTransactions(cloudData.transactions);
+        count += cloudData.transactions.length;
+      }
+      if (cloudData.closings && cloudData.closings.length > 0) {
+        localStorage.setItem('acl_counter_closings_v5', JSON.stringify(cloudData.closings));
+        setClosings(cloudData.closings);
+        count += cloudData.closings.length;
+      }
+      if (cloudData.loans && cloudData.loans.length > 0) {
+        storage.saveLoans(cloudData.loans);
+        setLoans(cloudData.loans);
+        count += cloudData.loans.length;
+      }
+
+      refreshData();
+      setIsCloudConnected(true);
+      setCloudStatus('connected');
+      setLastCloudSync(Date.now());
+      showToast(`✓ Successfully downloaded ${count} records from Cloud!`, 'success');
+      return { success: true, count };
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to pull cloud data';
+      showToast(`Cloud fetch failed: ${msg}`, 'error');
+      return { success: false, count: 0, error: msg };
+    }
+  };
+
   const updateConfig = (newConfig: BusinessConfig) => {
     storage.saveConfig(newConfig);
     setConfigState(newConfig);
     sound.setEnabled(newConfig.soundEnabled);
+    saveConfigToCloud(newConfig);
     showToast('Settings saved!');
   };
 
@@ -273,8 +437,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>): Transaction => {
     const newTx = storage.addTransaction({
       ...tx,
+      businessId: config.id || 'biz_default',
       staffName: tx.staffName || selectedMember,
     });
+    saveTransactionToCloud(newTx);
     if (tx.type === 'income') {
       sound.playIncome();
     } else {
@@ -287,12 +453,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTransaction = (tx: Transaction) => {
     storage.updateTransaction(tx);
+    saveTransactionToCloud(tx);
     refreshData();
     showToast('Transaction updated');
   };
 
   const deleteTransaction = (id: string) => {
     storage.deleteTransaction(id);
+    deleteTransactionFromCloud(id);
     refreshData();
     showToast('Transaction removed', 'info');
   };
@@ -302,11 +470,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   };
 
+  const addUpiAccount = (account: string) => {
+    storage.addUpiAccount(account);
+    refreshData();
+  };
+
   const saveClosing = (closing: Omit<DailyClosing, 'id' | 'closedAt'>): DailyClosing => {
     const res = storage.saveClosing({
       ...closing,
+      businessId: config.id || 'biz_default',
       closedBy: closing.closedBy || selectedMember,
     });
+    saveClosingToCloud(res);
     if (res.status === 'balanced') {
       sound.playBalanced();
     } else {
@@ -325,7 +500,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: string,
     notes?: string
   ) => {
-    storage.giveLoan(borrowerName, borrowerPhone, amount, paymentMethod, selectedMember, selectedDate, notes);
+    const res = storage.giveLoan(borrowerName, borrowerPhone, amount, paymentMethod, selectedMember, selectedDate, notes);
+    saveLoanToCloud(res.loan);
+    saveTransactionToCloud(res.transaction);
     sound.playExpense();
     refreshData();
     showToast(`Loan of ₹${amount.toLocaleString()} given to ${borrowerName}`);
@@ -337,7 +514,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: string,
     notes?: string
   ) => {
-    storage.repayLoan(loanId, amount, paymentMethod, selectedMember, selectedDate, notes);
+    const res = storage.repayLoan(loanId, amount, paymentMethod, selectedMember, selectedDate, notes);
+    saveLoanToCloud(res.loan);
+    saveTransactionToCloud(res.transaction);
     sound.playIncome();
     refreshData();
     showToast(`Loan repayment of ₹${amount.toLocaleString()} received!`);
@@ -345,6 +524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteLoan = (id: string) => {
     storage.deleteLoan(id);
+    deleteLoanFromCloud(id);
     refreshData();
     showToast('Loan record removed', 'info');
   };
@@ -387,6 +567,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         config,
         updateConfig,
         isCloudConnected,
+        cloudStatus,
+        cloudErrorMessage,
+        lastCloudSync,
+        firebaseProjectId: DEFAULT_FIREBASE_CONFIG.projectId,
+        testCloudConnection,
+        syncAllToCloud,
+        pullAllFromCloud,
         currentScreen,
         selectedMember,
         loginAsMember,
@@ -408,6 +595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTransaction,
         deleteTransaction,
         addCategory,
+        addUpiAccount,
         saveClosing,
         giveLoan,
         repayLoan,
