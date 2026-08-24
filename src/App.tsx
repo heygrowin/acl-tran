@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LandingScreen } from './components/LandingScreen';
 import { EmployeeScreen } from './components/EmployeeScreen';
 import { AdminScreen } from './components/AdminScreen';
@@ -19,6 +20,7 @@ const MainApp: React.FC = () => {
     isCounterModalOpen,
     closeCounterModal,
     counterInitialType,
+    counterInitialStaff,
     toastMessage,
   } = useApp();
 
@@ -35,6 +37,7 @@ const MainApp: React.FC = () => {
         isOpen={isCounterModalOpen}
         onClose={closeCounterModal}
         initialType={counterInitialType}
+        initialStaff={counterInitialStaff}
       />
       <DailyClosingModal />
 
@@ -55,9 +58,11 @@ const MainApp: React.FC = () => {
 
 export function App() {
   return (
-    <AppProvider>
-      <MainApp />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <MainApp />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 

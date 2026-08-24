@@ -92,8 +92,9 @@ interface AppContextType {
   // Modals & Triggers
   isCounterModalOpen: boolean;
   counterInitialType: TransactionType;
+  counterInitialStaff?: string;
   editingTransaction: Transaction | null;
-  openCounterModal: (initialType?: TransactionType, txToEdit?: Transaction | null) => void;
+  openCounterModal: (initialType?: TransactionType, txToEdit?: Transaction | null, initialCounter?: string) => void;
   closeCounterModal: () => void;
 
   isClosingModalOpen: boolean;
@@ -129,6 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // UI Modals
   const [isCounterModalOpen, setIsCounterModalOpen] = useState(false);
   const [counterInitialType, setCounterInitialType] = useState<TransactionType>('income');
+  const [counterInitialStaff, setCounterInitialStaff] = useState<string | undefined>(undefined);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
 
@@ -544,15 +546,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return count;
   };
 
-  const openCounterModal = (initialType: TransactionType = 'income', txToEdit: Transaction | null = null) => {
+  const openCounterModal = (
+    initialType: TransactionType = 'income',
+    txToEdit: Transaction | null = null,
+    initialCounter?: string
+  ) => {
     setCounterInitialType(initialType);
     setEditingTransaction(txToEdit);
+    setCounterInitialStaff(initialCounter);
     setIsCounterModalOpen(true);
   };
 
   const closeCounterModal = () => {
     setIsCounterModalOpen(false);
     setEditingTransaction(null);
+    setCounterInitialStaff(undefined);
   };
 
   const openClosingModal = () => setIsClosingModalOpen(true);
@@ -605,6 +613,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshData,
         isCounterModalOpen,
         counterInitialType,
+        counterInitialStaff,
         editingTransaction,
         openCounterModal,
         closeCounterModal,

@@ -126,7 +126,7 @@ export interface BusinessConfig {
 
 export type CurrentScreen = 'landing' | 'employee' | 'admin';
 
-export type AdminTab = 'dashboard' | 'transactions' | 'loans' | 'closing' | 'reports' | 'settings';
+export type AdminTab = 'dashboard' | 'summary' | 'transactions' | 'loans' | 'closing' | 'reports' | 'settings';
 
 export interface DayBalances {
   date: string;

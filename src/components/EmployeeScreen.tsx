@@ -94,6 +94,43 @@ export const EmployeeScreen: React.FC = () => {
     openCounterModal(tx.type, tx);
   };
 
+  const handleEditCashInHandEntry = () => {
+    const existingCashInHand = todayTransactions.find(
+      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+    );
+    if (existingCashInHand) {
+      openCounterModal(existingCashInHand.type, existingCashInHand, existingCashInHand.staffName || selectedMember);
+    } else {
+      const syntheticTx: (typeof todayTransactions)[0] = {
+        id: '',
+        businessId: config.id,
+        date: selectedDate,
+        time: '12:00',
+        type: 'income',
+        amount: dayBalances.expectedCash,
+        paymentMethod: 'cash',
+        category: 'CASH IN HAND',
+        staffName: selectedMember,
+        note: 'Cash in Hand',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      openCounterModal('income', syntheticTx, selectedMember);
+    }
+  };
+
+  const handleDeleteCashInHandEntry = () => {
+    const existingCashInHand = todayTransactions.find(
+      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+    );
+    if (existingCashInHand) {
+      if (confirm(`Delete Cash in Hand entry of ${formatCurrency(existingCashInHand.amount, config.currency)}?`)) {
+        deleteTransaction(existingCashInHand.id);
+        showToast('Cash in Hand entry deleted');
+      }
+    }
+  };
+
   const handleStartEditOpening = () => {
     setEditCash(dayBalances.openingCash.toString());
     setEditOnline(dayBalances.openingOnline.toString());
@@ -294,28 +331,51 @@ export const EmployeeScreen: React.FC = () => {
               }}
             >
               {/* Left: Cash */}
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, textAlign: 'left' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.675rem', fontWeight: 700, color: '#92400e' }}>
                     <Wallet size={12} style={{ color: '#d97706' }} />
-                    <span>Cash</span>
+                    <span>Cash in Hand</span>
                   </div>
-                  {!isEditingOpening && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
                     <button
                       className="icon-btn"
-                      style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
-                      onClick={handleStartEditOpening}
-                      title="Edit Opening Balances"
+                      style={{ width: '18px', height: '18px', border: 'none', background: 'transparent', color: '#b45309' }}
+                      onClick={handleEditCashInHandEntry}
+                      title="Edit / Record Cash in Hand"
                     >
-                      <Edit2 size={9} style={{ color: '#94a3b8' }} />
+                      <Edit2 size={9} />
                     </button>
-                  )}
+                    <button
+                      className="icon-btn"
+                      style={{ width: '18px', height: '18px', border: 'none', background: 'transparent', color: '#dc2626' }}
+                      onClick={handleDeleteCashInHandEntry}
+                      title="Delete / Clear Cash in Hand"
+                    >
+                      <Trash2 size={9} />
+                    </button>
+                    {!isEditingOpening && (
+                      <button
+                        className="icon-btn"
+                        style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
+                        onClick={handleStartEditOpening}
+                        title="Edit Opening Balances"
+                      >
+                        <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>⚙️</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="font-mono" style={{ fontSize: '1.1rem', fontWeight: 800, color: '#b45309', lineHeight: 1.15 }}>
+                <div
+                  className="font-mono"
+                  style={{ fontSize: '1.1rem', fontWeight: 800, color: '#b45309', lineHeight: 1.15, cursor: 'pointer' }}
+                  onClick={handleEditCashInHandEntry}
+                  title="Click to edit Cash in Hand"
+                >
                   {formatCurrency(dayBalances.expectedCash, config.currency)}
                 </div>
                 <div style={{ fontSize: '0.6rem', color: '#64748b' }}>
-                  Drawer live cash
+                  Drawer live cash • <span style={{ textDecoration: 'underline', cursor: 'pointer', color: '#b45309' }} onClick={handleEditCashInHandEntry}>Edit</span> • <span style={{ textDecoration: 'underline', cursor: 'pointer', color: '#dc2626' }} onClick={handleDeleteCashInHandEntry}>Clear</span>
                 </div>
               </div>
 
@@ -620,14 +680,14 @@ export const EmployeeScreen: React.FC = () => {
                               gap: '0.35rem',
                             }}
                           >
-                            <div style={{ minWidth: 0 }}>
+                            <div style={{ minWidth: 0, textAlign: 'left' }}>
                               {/* Primary: Head Name */}
-                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25 }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25, textAlign: 'left' }}>
                                 {tx.category || 'Receive'}
                               </div>
 
                               {/* Details: Made by + Payment Method + Note + Phone */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569', textAlign: 'left' }}>
                                 <span style={{ fontWeight: 700, color: '#1e293b' }}>
                                   👤 {tx.staffName || selectedMember || 'Counter 1'}
                                 </span>
@@ -686,6 +746,7 @@ export const EmployeeScreen: React.FC = () => {
                     padding: '0.45rem',
                     display: 'flex',
                     flexDirection: 'column',
+                    textAlign: 'left',
                   }}
                 >
                   <div
@@ -733,16 +794,17 @@ export const EmployeeScreen: React.FC = () => {
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               gap: '0.35rem',
+                              textAlign: 'left',
                             }}
                           >
-                            <div style={{ minWidth: 0 }}>
+                            <div style={{ minWidth: 0, textAlign: 'left' }}>
                               {/* Primary: Head Name */}
-                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25 }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', lineHeight: 1.25, textAlign: 'left' }}>
                                 {tx.category || 'Expense'}
                               </div>
 
                               {/* Details: Made by + Payment Method + Note + Phone */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569', textAlign: 'left' }}>
                                 <span style={{ fontWeight: 700, color: '#1e293b' }}>
                                   👤 {tx.staffName || selectedMember || 'Counter 1'}
                                 </span>
@@ -819,13 +881,14 @@ export const EmployeeScreen: React.FC = () => {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           gap: '0.35rem',
+                          textAlign: 'left',
                         }}
                       >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a' }}>
+                        <div style={{ minWidth: 0, textAlign: 'left' }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#0f172a', textAlign: 'left' }}>
                             {tx.category || (isIncome ? 'Receive' : 'Expense')}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem', fontSize: '0.675rem', color: '#475569', textAlign: 'left' }}>
                             <span style={{ fontWeight: 700 }}>👤 {tx.staffName || 'Staff'}</span>
                             <span>•</span>
                             <span className={`badge badge-${tx.type}`} style={{ fontSize: '0.575rem', padding: '0.05rem 0.3rem', fontWeight: 700 }}>

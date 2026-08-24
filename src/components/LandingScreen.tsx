@@ -381,23 +381,38 @@ export const LandingScreen: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Counter Selection Dropdown */}
+                    {/* Counter Selection Cards / Chips */}
                     <div className="form-group" style={{ marginBottom: '0.85rem' }}>
                       <label className="form-label" style={{ fontSize: '0.775rem', fontWeight: 700 }}>
                         Select Counter:
                       </label>
-                      <select
-                        className="form-input"
-                        style={{ fontSize: '0.9rem', fontWeight: 700, padding: '0.55rem 0.75rem' }}
-                        value={selectedCounterId}
-                        onChange={e => setSelectedCounterId(e.target.value)}
-                      >
-                        {counters.map((c, idx) => (
-                          <option key={c.id} value={c.id}>
-                            👤 {c.name} (Counter #{idx + 1})
-                          </option>
-                        ))}
-                      </select>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '0.4rem' }}>
+                        {counters.map(c => {
+                          const isSelected = selectedCounterId === c.id;
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              style={{
+                                padding: '0.55rem 0.4rem',
+                                borderRadius: '8px',
+                                border: isSelected ? '2px solid #1a1a9e' : '1px solid #e2e8f0',
+                                background: isSelected ? '#eff6ff' : '#ffffff',
+                                color: isSelected ? '#1a1a9e' : '#334155',
+                                fontWeight: 800,
+                                fontSize: '0.825rem',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                boxShadow: isSelected ? '0 2px 6px rgba(26, 26, 158, 0.15)' : 'none',
+                                transition: 'all 0.12s ease',
+                              }}
+                              onClick={() => setSelectedCounterId(c.id)}
+                            >
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Counter Password */}

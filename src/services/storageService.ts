@@ -36,10 +36,15 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethodConfig[] = [
 ];
 
 export const DEFAULT_COUNTERS: CounterProfile[] = [
-  { id: 'counter_1', name: 'Counter 1', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'krishna', name: 'KRISHNA', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'navin', name: 'NAVIN', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'other', name: 'OTHER', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
 ];
 
 export const DEFAULT_INCOME_CATEGORIES = [
+  'LAB WORK',
+  'GOODS',
+  'CASH IN HAND',
   'Customer Order',
   'Advance Payment',
   'Product Sale',
@@ -48,6 +53,12 @@ export const DEFAULT_INCOME_CATEGORIES = [
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
+  'FOOD',
+  'TEA',
+  'TRANSPORTING',
+  'PARSAL',
+  'BANK (RTGS)',
+  'CASH IN HAND',
   'Tea & Snacks',
   'Delivery & Auto/Fuel',
   'Material / Goods Purchase',
@@ -60,14 +71,14 @@ export const DEFAULT_UPI_ACCOUNTS: string[] = [];
 
 export const DEFAULT_CONFIG: BusinessConfig = {
   id: 'biz_default',
-  businessName: 'ACL Counter Manage',
+  businessName: 'DEMOSTRATION PACK',
   tagline: 'Daily Cash & Transaction Manager',
   phone: '+91 98765 43210',
   currency: '₹',
   adminPassword: 'admin@123',
   employeePassword: 'P@counter',
-  activeStaffName: 'Counter 1',
-  staffMembers: ['Counter 1', 'Admin / Owner'],
+  activeStaffName: 'KRISHNA',
+  staffMembers: ['KRISHNA', 'NAVIN', 'OTHER', 'Admin / Owner'],
   counters: DEFAULT_COUNTERS,
   defaultOpeningCash: 10000,
   defaultOpeningOnline: 5000,
@@ -89,6 +100,16 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
+// Helper: Format Date to DD-MM-YYYY
+export function formatDDMMYYYY(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
 export function getCurrentTimeString(): string {
   const d = new Date();
   return d.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
@@ -102,6 +123,14 @@ export function formatCurrency(amount: number, currency = '₹'): string {
     minimumFractionDigits: 0,
   }).format(absVal);
   return `${isNeg ? '-' : ''}${currency}${formatted}`;
+}
+
+export function isRightSideEntry(t: Transaction): boolean {
+  if (t.type === 'expense') return true;
+  const cUpper = (t.category || '').trim().toUpperCase();
+  if (cUpper === 'CASH IN HAND' || cUpper === 'BANK (RTGS)') return true;
+  if (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS')) return true;
+  return false;
 }
 
 // Clean Initial State (0 Sample Data)

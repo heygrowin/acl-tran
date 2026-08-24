@@ -10,7 +10,8 @@ import {
   Building,
   Check,
   Plus,
-  ChevronDown
+  ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { getTodayDateString, getCurrentTimeString, formatCurrency } from '../services/storageService';
 
@@ -18,17 +19,22 @@ interface CounterTerminalProps {
   isOpen: boolean;
   onClose: () => void;
   initialType?: TransactionType;
+  initialStaff?: string;
 }
 
 export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   isOpen,
   onClose,
   initialType = 'income',
+  initialStaff,
 }) => {
   const {
     config,
+    counters,
     addTransaction,
     updateTransaction,
+    deleteTransaction,
+    showToast,
     editingTransaction,
     selectedDate,
     addCategory,
@@ -36,13 +42,25 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     selectedMember,
   } = useApp();
 
+  const availableStaff = Array.from(
+    new Set([
+      ...(counters || []).map(c => c.name),
+      ...(config.staffMembers || []).filter(s => s !== 'Admin / Owner'),
+      'KRISHNA',
+      'NAVIN',
+      'OTHER',
+    ])
+  ).filter(s => s !== 'Admin / Owner' && s !== 'ADMIN / OWNER');
+
+  const defaultStaff = initialStaff || (selectedMember && selectedMember !== 'Admin / Owner' ? selectedMember : (availableStaff[0] || 'KRISHNA'));
+
   const [type, setType] = useState<TransactionType>(initialType);
   const [amount, setAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [upiAccount, setUpiAccount] = useState<string>('');
   const [category, setCategory] = useState<string>(''); // Head in UI
   const [note, setNote] = useState<string>('');
-  const [staffName, setStaffName] = useState<string>(selectedMember || config.activeStaffName || 'Counter 1');
+  const [staffName, setStaffName] = useState<string>(defaultStaff);
   const [customerPhone, setCustomerPhone] = useState<string>('');
 
   // Dropdown states
@@ -67,7 +85,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setUpiAccount(editingTransaction.paymentAccount || '');
       setCategory(editingTransaction.category || '');
       setNote(editingTransaction.note || '');
-      setStaffName(editingTransaction.staffName || selectedMember || 'Counter 1');
+      setStaffName(editingTransaction.staffName || defaultStaff);
       setCustomerPhone(editingTransaction.customerPhone || editingTransaction.borrowerPhone || '');
     } else {
       setType(initialType);
@@ -76,12 +94,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setUpiAccount('');
       setCategory('');
       setNote('');
-      setStaffName(selectedMember || config.activeStaffName || 'Counter 1');
+      setStaffName(initialStaff || (selectedMember && selectedMember !== 'Admin / Owner' ? selectedMember : (availableStaff[0] || 'KRISHNA')));
       setCustomerPhone('');
     }
     setIsCategoryDropdownOpen(false);
     setIsUpiDropdownOpen(false);
-  }, [isOpen, initialType, editingTransaction, config, selectedMember]);
+  }, [isOpen, initialType, initialStaff, editingTransaction, config, selectedMember]);
 
   // Focus amount input on open
   useEffect(() => {
@@ -163,9 +181,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       addUpiAccount(finalPaymentAccount);
     }
 
-    const effectiveStaffName = staffName.trim() || selectedMember || 'Counter 1';
+    const sanitizedStaff = staffName.trim();
+    const effectiveStaffName = (sanitizedStaff && sanitizedStaff !== 'Admin / Owner')
+      ? sanitizedStaff
+      : (selectedMember && selectedMember !== 'Admin / Owner' ? selectedMember : (availableStaff[0] || 'KRISHNA'));
 
-    if (editingTransaction) {
+    if (editingTransaction && editingTransaction.id) {
       updateTransaction({
         ...editingTransaction,
         type,
@@ -196,6 +217,21 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     onClose();
   };
 
+  const handleDeleteCurrent = () => {
+    if (editingTransaction && editingTransaction.id) {
+      const isCashInHand = (editingTransaction.category || '').trim().toUpperCase() === 'CASH IN HAND';
+      const label = isCashInHand ? 'Cash in Hand entry' : `${type.toUpperCase()} entry`;
+      if (confirm(`Delete this ${label} of ${formatCurrency(editingTransaction.amount, config.currency)}?`)) {
+        deleteTransaction(editingTransaction.id);
+        showToast(`${label} deleted`);
+        onClose();
+      }
+    } else {
+      onClose();
+      showToast('Cancelled');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -214,7 +250,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ fontSize: '1.1rem' }}>{type === 'income' ? '🟢' : '🔴'}</span>
             <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
-              {editingTransaction ? 'Edit Entry' : type === 'income' ? '+ Receive Entry' : '− Expense Entry'}
+              {editingTransaction && editingTransaction.id ? 'Edit Entry' : editingTransaction ? 'Edit Cash in Hand' : type === 'income' ? '+ Receive Entry' : '− Expense Entry'}
             </h2>
           </div>
           <button className="icon-btn" style={{ width: '26px', height: '26px' }} onClick={onClose}>
@@ -246,6 +282,38 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </button>
           </div>
 
+          {/* Counter / Staff Selector */}
+          <div style={{ marginBottom: '0.55rem' }}>
+            <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
+              Counter / Staff:
+            </label>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {availableStaff.map(cName => {
+                const isSelected = staffName.toLowerCase() === cName.toLowerCase();
+                return (
+                  <button
+                    key={cName}
+                    type="button"
+                    style={{
+                      padding: '0.25rem 0.65rem',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      background: isSelected ? '#1e1b87' : '#f1f5f9',
+                      color: isSelected ? '#ffffff' : '#334155',
+                      border: isSelected ? '1.5px solid #1e1b87' : '1px solid #cbd5e1',
+                      cursor: 'pointer',
+                      transition: 'all 0.12s ease'
+                    }}
+                    onClick={() => setStaffName(cName)}
+                  >
+                    {cName}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* 2. HEAD SELECTOR (Positioned above phone & note, with dropdown on click/focus) */}
           <div ref={categoryContainerRef} style={{ position: 'relative', marginBottom: '0.55rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
@@ -260,10 +328,14 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 type="text"
                 className="form-input"
                 style={{ fontSize: '0.825rem', padding: '0.4rem 2rem 0.4rem 0.65rem', fontWeight: 600 }}
-                placeholder={type === 'income' ? 'Head (e.g. Product Sales, Order, Service)' : 'Head (e.g. Tea & Snacks, Fuel, Salary)'}
+                placeholder={type === 'income' ? 'Head (e.g. LAB WORK, GOODS, CASH IN HAND)' : 'Head (e.g. FOOD, TEA, CASH IN HAND)'}
                 value={category}
                 onChange={e => {
-                  setCategory(e.target.value);
+                  const val = e.target.value;
+                  setCategory(val);
+                  if (val.trim().toUpperCase() === 'CASH IN HAND') {
+                    setPaymentMethod('cash');
+                  }
                   setIsCategoryDropdownOpen(true);
                 }}
                 onFocus={() => setIsCategoryDropdownOpen(true)}
@@ -284,6 +356,38 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               >
                 <ChevronDown size={14} />
               </button>
+            </div>
+
+            {/* Quick Head Chips */}
+            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+              {(type === 'income'
+                ? ['LAB WORK', 'GOODS', 'CASH IN HAND', 'BANK (RTGS)', 'Advance', 'Sale']
+                : ['FOOD', 'TEA', 'TRANSPORTING', 'PARSAL', 'BANK (RTGS)', 'CASH IN HAND', 'UPI AP', 'UPI RUPA']
+              ).map(catName => (
+                <button
+                  key={catName}
+                  type="button"
+                  style={{
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '4px',
+                    fontSize: '0.675rem',
+                    fontWeight: 700,
+                    background: category.toLowerCase() === catName.toLowerCase() ? (type === 'income' ? '#dcfce7' : '#fee2e2') : '#f1f5f9',
+                    color: category.toLowerCase() === catName.toLowerCase() ? (type === 'income' ? '#166534' : '#991b1b') : '#475569',
+                    border: `1px solid ${category.toLowerCase() === catName.toLowerCase() ? (type === 'income' ? '#86efac' : '#fecaca') : '#e2e8f0'}`,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setCategory(catName);
+                    if (catName.toUpperCase() === 'CASH IN HAND') {
+                      setPaymentMethod('cash');
+                    }
+                    setIsCategoryDropdownOpen(false);
+                  }}
+                >
+                  {catName}
+                </button>
+              ))}
             </div>
 
             {/* Head Auto-suggest Dropdown */}
@@ -570,22 +674,48 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </div>
           )}
 
-          {/* 7. Save Button */}
-          <button
-            type="submit"
-            className={`btn-save-transaction ${type}`}
-            style={{
-              width: '100%',
-              padding: '0.65rem',
-              fontSize: '0.925rem',
-              fontWeight: 800,
-              background: type === 'income' ? '#16a34a' : '#dc2626',
-              boxShadow: 'none',
-            }}
-          >
-            <Check size={16} />
-            <span>SAVE ({formatCurrency(parseFloat(amount) || 0, config.currency)})</span>
-          </button>
+          {/* 7. Action Buttons: Delete (if editing) & Save */}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.4rem' }}>
+            {editingTransaction && (
+              <button
+                type="button"
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  borderRadius: '8px',
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  cursor: 'pointer',
+                }}
+                onClick={handleDeleteCurrent}
+                title="Delete this entry"
+              >
+                <Trash2 size={15} />
+                <span>Delete</span>
+              </button>
+            )}
+
+            <button
+              type="submit"
+              className={`btn-save-transaction ${type}`}
+              style={{
+                flex: 1,
+                padding: '0.65rem',
+                fontSize: '0.925rem',
+                fontWeight: 800,
+                background: type === 'income' ? '#16a34a' : '#dc2626',
+                boxShadow: 'none',
+              }}
+            >
+              <Check size={16} />
+              <span>SAVE ({formatCurrency(parseFloat(amount) || 0, config.currency)})</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>

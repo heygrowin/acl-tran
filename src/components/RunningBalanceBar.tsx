@@ -6,7 +6,8 @@ import {
   HandCoins,
   Edit2,
   Check,
-  X
+  X,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency, storage } from '../services/storageService';
 
@@ -22,6 +23,9 @@ export const RunningBalanceBar: React.FC = () => {
     loans,
     setAdminTab,
     todayTransactions,
+    openCounterModal,
+    deleteTransaction,
+    selectedMember,
   } = useApp();
 
   const [isEditingOpening, setIsEditingOpening] = useState(false);
@@ -31,6 +35,43 @@ export const RunningBalanceBar: React.FC = () => {
 
   const totalPendingLoan = loans.reduce((sum, l) => sum + (l.pendingAmount || 0), 0);
   const activeBorrowersCount = loans.filter(l => l.pendingAmount > 0).length;
+
+  const handleEditCashInHandEntry = () => {
+    const existingCashInHand = todayTransactions.find(
+      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+    );
+    if (existingCashInHand) {
+      openCounterModal(existingCashInHand.type, existingCashInHand, existingCashInHand.staffName || selectedMember);
+    } else {
+      const syntheticTx = {
+        id: '',
+        businessId: config.id,
+        date: selectedDate,
+        time: '12:00',
+        type: 'income' as const,
+        amount: dayBalances.expectedCash,
+        paymentMethod: 'cash',
+        category: 'CASH IN HAND',
+        staffName: selectedMember,
+        note: 'Cash in Hand',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      openCounterModal('income', syntheticTx, selectedMember);
+    }
+  };
+
+  const handleDeleteCashInHandEntry = () => {
+    const existingCashInHand = todayTransactions.find(
+      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+    );
+    if (existingCashInHand) {
+      if (confirm(`Delete Cash in Hand entry of ${formatCurrency(existingCashInHand.amount, config.currency)}?`)) {
+        deleteTransaction(existingCashInHand.id);
+        showToast('Cash in Hand entry deleted');
+      }
+    }
+  };
 
   // Calculate breakdown per UPI account from today's transactions
   const upiBreakdown = todayTransactions
@@ -89,25 +130,48 @@ export const RunningBalanceBar: React.FC = () => {
         }}
       >
         {/* 1. CASH */}
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.675rem', fontWeight: 700, color: '#92400e' }}>
               <Banknote size={12} style={{ color: '#d97706' }} />
-              <span>Cash</span>
+              <span>Cash in Hand</span>
             </div>
-            {!isEditingOpening && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
               <button
                 className="icon-btn"
-                style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
-                onClick={handleStartEdit}
-                title="Edit Opening Balances"
+                style={{ width: '18px', height: '18px', border: 'none', background: 'transparent', color: '#b45309' }}
+                onClick={handleEditCashInHandEntry}
+                title="Edit / Record Cash in Hand"
               >
-                <Edit2 size={9} style={{ color: '#94a3b8' }} />
+                <Edit2 size={9} />
               </button>
-            )}
+              <button
+                className="icon-btn"
+                style={{ width: '18px', height: '18px', border: 'none', background: 'transparent', color: '#dc2626' }}
+                onClick={handleDeleteCashInHandEntry}
+                title="Delete / Clear Cash in Hand"
+              >
+                <Trash2 size={9} />
+              </button>
+              {!isEditingOpening && (
+                <button
+                  className="icon-btn"
+                  style={{ width: '18px', height: '18px', border: 'none', background: 'transparent' }}
+                  onClick={handleStartEdit}
+                  title="Edit Opening Balances"
+                >
+                  <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>⚙️</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="font-mono" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#b45309', lineHeight: 1.15 }}>
+          <div
+            className="font-mono"
+            style={{ fontSize: '1.05rem', fontWeight: 800, color: '#b45309', lineHeight: 1.15, cursor: 'pointer' }}
+            onClick={handleEditCashInHandEntry}
+            title="Click to edit Cash in Hand"
+          >
             {formatCurrency(dayBalances.expectedCash, config.currency)}
           </div>
 
