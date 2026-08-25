@@ -28,22 +28,27 @@ const STORAGE_KEYS = {
   SESSION: 'acl_counter_session_v5',
 };
 
-// Payment methods: Cash, UPI, RTGS
+// Payment methods: Cash, RTGS, UPI
 export const DEFAULT_PAYMENT_METHODS: PaymentMethodConfig[] = [
   { id: 'cash', name: 'Cash', type: 'cash', enabled: true, color: '#10b981', iconName: 'Banknote' },
-  { id: 'upi', name: 'UPI', type: 'online', enabled: true, color: '#6366f1', iconName: 'QrCode' },
   { id: 'rtgs', name: 'RTGS', type: 'online', enabled: true, color: '#2563eb', iconName: 'Building' },
+  { id: 'upi', name: 'UPI', type: 'online', enabled: true, color: '#6366f1', iconName: 'QrCode' },
 ];
 
 export const DEFAULT_COUNTERS: CounterProfile[] = [
   { id: 'krishna', name: 'KRISHNA', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
   { id: 'navin', name: 'NAVIN', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'sunil', name: 'SUNIL', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'anay', name: 'ANAY', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
+  { id: 'sonam', name: 'SONAM', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
   { id: 'other', name: 'OTHER', color: '#1e1b87', bg: '#eff6ff', border: '#bfdbfe' },
 ];
 
 export const DEFAULT_INCOME_CATEGORIES = [
   'LAB WORK',
   'GOODS',
+  'ID CARD',
+  'OTHER )',
   'CASH IN HAND',
   'Customer Order',
   'Advance Payment',
@@ -53,14 +58,13 @@ export const DEFAULT_INCOME_CATEGORIES = [
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
+  'TEATRANSPORT',
   'FOOD',
-  'TEA',
-  'TRANSPORTING',
   'PARSAL',
   'BANK (RTGS)',
   'CASH IN HAND',
-  'Tea & Snacks',
-  'Delivery & Auto/Fuel',
+  'TEA',
+  'TRANSPORTING',
   'Material / Goods Purchase',
   'Staff Wages / Salary',
   'Shop Expenses / Bills',
@@ -78,16 +82,19 @@ export const DEFAULT_CONFIG: BusinessConfig = {
   adminPassword: 'admin@123',
   employeePassword: 'P@counter',
   activeStaffName: 'KRISHNA',
-  staffMembers: ['KRISHNA', 'NAVIN', 'OTHER', 'Admin / Owner'],
+  staffMembers: ['KRISHNA', 'NAVIN', 'SUNIL', 'ANAY', 'SONAM', 'OTHER'],
   counters: DEFAULT_COUNTERS,
   defaultOpeningCash: 10000,
   defaultOpeningOnline: 5000,
+  initialCash: 0,
+  initialRtgs: 0,
+  initialUpi: 0,
   incomeCategories: DEFAULT_INCOME_CATEGORIES,
   expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
   upiAccounts: DEFAULT_UPI_ACCOUNTS,
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   theme: 'light',
-  soundEnabled: true,
+  soundEnabled: false,
   storageMode: 'firebase',
 };
 
@@ -394,6 +401,173 @@ export class StorageService {
     } catch (e) {
       console.error('Error saving opening balances', e);
     }
+  }
+
+  // --- TREASURY INITIAL BALANCES & RUNNING TOTALS ---
+  public getInitialTreasuryBalances(): { cash: number; rtgs: number; upi: number } {
+    const config = this.getConfig();
+    return {
+      cash: config.initialCash || 0,
+      rtgs: config.initialRtgs || 0,
+      upi: config.initialUpi || 0,
+    };
+  }
+
+  public setInitialTreasuryBalances(balances: { cash: number; rtgs: number; upi: number }): void {
+    const config = this.getConfig();
+    config.initialCash = Number(balances.cash) || 0;
+    config.initialRtgs = Number(balances.rtgs) || 0;
+    config.initialUpi = Number(balances.upi) || 0;
+    this.saveConfig(config);
+  }
+
+  public calculateTreasuryBalances(transactionsList?: Transaction[], upToDate?: string): {
+    initialCash: number;
+    initialRtgs: number;
+    initialUpi: number;
+    initialTotal: number;
+    
+    receivedCash: number;
+    receivedRtgs: number;
+    receivedUpi: number;
+    receivedTotal: number;
+    
+    expenseCash: number;
+    expenseRtgs: number;
+    expenseUpi: number;
+    expenseTotal: number;
+    
+    adminExpenseCash: number;
+    adminExpenseRtgs: number;
+    adminExpenseUpi: number;
+    adminExpenseTotal: number;
+
+    adminIncomeCash: number;
+    adminIncomeRtgs: number;
+    adminIncomeUpi: number;
+    adminIncomeTotal: number;
+
+    adminTransactions: Transaction[];
+    
+    actualCash: number;
+    actualRtgs: number;
+    actualUpi: number;
+    actualTotal: number;
+  } {
+    const init = this.getInitialTreasuryBalances();
+    const allTxs = transactionsList || this.getTransactions();
+    
+    const relevantTxs = upToDate 
+      ? allTxs.filter(t => t.date <= upToDate)
+      : allTxs;
+
+    let receivedCash = 0;
+    let receivedRtgs = 0;
+    let receivedUpi = 0;
+
+    let expenseCash = 0;
+    let expenseRtgs = 0;
+    let expenseUpi = 0;
+
+    let adminExpenseCash = 0;
+    let adminExpenseRtgs = 0;
+    let adminExpenseUpi = 0;
+
+    let adminIncomeCash = 0;
+    let adminIncomeRtgs = 0;
+    let adminIncomeUpi = 0;
+
+    const adminTransactions: Transaction[] = [];
+
+    relevantTxs.forEach(t => {
+      if (!t) return;
+      const pMethod = (t.paymentMethod || 'cash').toString().toLowerCase();
+      const sName = (t.staffName || '').trim().toUpperCase();
+      const isAdmin = sName === 'ADMIN' || sName === 'ADMIN / OWNER' || sName === 'OWNER';
+      const cUpper = (t.category || '').trim().toUpperCase();
+      const isRightSide = cUpper === 'CASH IN HAND' || cUpper === 'BANK (RTGS)' || (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS'));
+
+      if (isAdmin) {
+        adminTransactions.push(t);
+      }
+
+      if (t.type === 'income') {
+        if (!isRightSide) {
+          if (pMethod === 'cash') {
+            receivedCash += (t.amount || 0);
+            if (isAdmin) adminIncomeCash += (t.amount || 0);
+          } else if (pMethod === 'rtgs') {
+            receivedRtgs += (t.amount || 0);
+            if (isAdmin) adminIncomeRtgs += (t.amount || 0);
+          } else if (pMethod === 'upi') {
+            receivedUpi += (t.amount || 0);
+            if (isAdmin) adminIncomeUpi += (t.amount || 0);
+          }
+        }
+      } else if (t.type === 'expense') {
+        if (pMethod === 'cash') {
+          expenseCash += (t.amount || 0);
+          if (isAdmin) adminExpenseCash += (t.amount || 0);
+        } else if (pMethod === 'rtgs') {
+          expenseRtgs += (t.amount || 0);
+          if (isAdmin) adminExpenseRtgs += (t.amount || 0);
+        } else if (pMethod === 'upi') {
+          expenseUpi += (t.amount || 0);
+          if (isAdmin) adminExpenseUpi += (t.amount || 0);
+        }
+      }
+    });
+
+    const receivedTotal = receivedCash + receivedRtgs + receivedUpi;
+    const expenseTotal = expenseCash + expenseRtgs + expenseUpi;
+    const adminExpenseTotal = adminExpenseCash + adminExpenseRtgs + adminExpenseUpi;
+    const adminIncomeTotal = adminIncomeCash + adminIncomeRtgs + adminIncomeUpi;
+
+    const actualCash = init.cash + receivedCash - expenseCash;
+    const actualRtgs = init.rtgs + receivedRtgs - expenseRtgs;
+    const actualUpi = init.upi + receivedUpi - expenseUpi;
+    const actualTotal = actualCash + actualRtgs + actualUpi;
+
+    // Sort admin transactions newest first
+    adminTransactions.sort((a, b) => {
+      const dateDiff = (b.date || '').localeCompare(a.date || '');
+      if (dateDiff !== 0) return dateDiff;
+      return (b.time || '').localeCompare(a.time || '');
+    });
+
+    return {
+      initialCash: init.cash,
+      initialRtgs: init.rtgs,
+      initialUpi: init.upi,
+      initialTotal: init.cash + init.rtgs + init.upi,
+      
+      receivedCash,
+      receivedRtgs,
+      receivedUpi,
+      receivedTotal,
+      
+      expenseCash,
+      expenseRtgs,
+      expenseUpi,
+      expenseTotal,
+      
+      adminExpenseCash,
+      adminExpenseRtgs,
+      adminExpenseUpi,
+      adminExpenseTotal,
+
+      adminIncomeCash,
+      adminIncomeRtgs,
+      adminIncomeUpi,
+      adminIncomeTotal,
+
+      adminTransactions,
+      
+      actualCash,
+      actualRtgs,
+      actualUpi,
+      actualTotal,
+    };
   }
 
   // --- TRANSACTIONS ---

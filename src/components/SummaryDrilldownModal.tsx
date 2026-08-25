@@ -82,27 +82,47 @@ export const SummaryDrilldownModal: React.FC<SummaryDrilldownModalProps> = ({
         return false;
       }
 
-      // 2. Type (Receive vs Expense)
+      // 2. Type (Receive vs Expense) & Payment Method
       const isRight = isRightSideEntry(t);
-      if (activeType === 'receive' && (t.type !== 'income' || isRight)) {
-        return false;
-      }
-      if (activeType === 'expense' && !isRight) {
-        return false;
-      }
+      const pMethod = (t.paymentMethod || 'cash').toString().toLowerCase();
+      const catUpper = (t.category || '').trim().toUpperCase();
 
-      // 3. Payment Method
-      if (activeMethod !== 'all') {
-        const pMethod = (t.paymentMethod || 'cash').toString().toLowerCase();
-        if (pMethod !== activeMethod.toLowerCase()) {
-          return false;
+      if (activeType === 'receive') {
+        if (t.type !== 'income' || isRight) return false;
+        if (activeMethod !== 'all' && pMethod !== activeMethod.toLowerCase()) return false;
+      } else if (activeType === 'expense') {
+        if (activeMethod === 'cash') {
+          const isCashExp = t.type === 'expense' && pMethod === 'cash';
+          const isCashInHand = catUpper === 'CASH IN HAND';
+          if (!isCashExp && !isCashInHand) return false;
+        } else if (activeMethod === 'rtgs') {
+          const isRtgsExp = t.type === 'expense' && pMethod === 'rtgs';
+          const isBankRtgs = catUpper === 'BANK (RTGS)' || catUpper.includes('RTGS');
+          const isRtgsSale = t.type === 'income' && pMethod === 'rtgs';
+          if (!isRtgsExp && !isBankRtgs && !isRtgsSale) return false;
+        } else if (activeMethod === 'upi') {
+          const isUpiExp = t.type === 'expense' && pMethod === 'upi';
+          const isUpiBreakdown = catUpper.startsWith('UPI');
+          const isUpiSale = t.type === 'income' && pMethod === 'upi';
+          if (!isUpiExp && !isUpiBreakdown && !isUpiSale) return false;
+        } else {
+          if (!isRight && (t.type === 'income' && pMethod === 'cash')) return false;
         }
+      } else {
+        if (activeMethod !== 'all' && pMethod !== activeMethod.toLowerCase()) return false;
       }
 
       // 4. Staff / Counter
+      const sName = (t.staffName || 'OTHER').toString().trim().toUpperCase();
+      const isAdmin = ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes(sName);
+
       if (selectedStaff !== 'all') {
-        const sName = (t.staffName || 'OTHER').toString().trim().toUpperCase();
         if (sName !== selectedStaff.toUpperCase()) {
+          return false;
+        }
+      } else {
+        // Exclude admin transactions from store sales / counter drilldowns so totals match summary cards
+        if (isAdmin) {
           return false;
         }
       }
@@ -233,7 +253,7 @@ export const SummaryDrilldownModal: React.FC<SummaryDrilldownModalProps> = ({
     const data = filteredTransactions.map((t, idx) => ({
       '#': idx + 1,
       'Date': t.date,
-      'Time': t.time || '',
+      'Time': (activeMethod === 'cash' || (t.paymentMethod || '').toLowerCase() === 'cash') ? '' : (t.time || ''),
       'Counter / Staff': t.staffName || 'OTHER',
       'Type': isRightSideEntry(t) ? 'EXPENSE / SETTLEMENT' : 'RECEIVE',
       'Head / Category': t.category || '',
@@ -638,7 +658,7 @@ export const SummaryDrilldownModal: React.FC<SummaryDrilldownModalProps> = ({
 
                         {/* Note & Account Meta */}
                         <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <span>📅 {formatDDMMYYYY(tx.date)} {tx.time ? `• ⏰ ${tx.time}` : ''}</span>
+                          <span>📅 {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && activeMethod !== 'cash' && tx.time ? ` • ⏰ ${tx.time}` : ''}</span>
                           {tx.paymentAccount && (
                             <span style={{ color: '#4338ca', fontWeight: 700 }}>
                               🏦 UPI({tx.paymentAccount})

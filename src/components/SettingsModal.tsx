@@ -469,9 +469,76 @@ export const SettingsModal: React.FC = () => {
                   style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem' }}
                   value={formData.defaultOpeningOnline}
                   onChange={e => setFormData({ ...formData, defaultOpeningOnline: parseFloat(e.target.value) || 0 })}
-                  placeholder="5000"
                   required
                 />
+              </div>
+            </div>
+
+            {/* Initial Treasury Baseline Reserves Card */}
+            <div
+              style={{
+                marginTop: '0.85rem',
+                marginBottom: '0.85rem',
+                background: '#f8fafc',
+                border: '1.5px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '0.75rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  🏛️ Baseline / Initial Balances (Treasury)
+                </span>
+                <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: 600 }}>
+                  One-time starting reserves for Live Treasury
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.74rem', color: '#166534', fontWeight: 800 }}>
+                    💵 Cash in Hand ({formData.currency}):
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input font-mono"
+                    style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem', border: '1px solid #86efac' }}
+                    value={formData.initialCash || 0}
+                    onChange={e => setFormData({ ...formData, initialCash: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.74rem', color: '#1e40af', fontWeight: 800 }}>
+                    🏦 Bank RTGS ({formData.currency}):
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input font-mono"
+                    style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem', border: '1px solid #93c5fd' }}
+                    value={formData.initialRtgs || 0}
+                    onChange={e => setFormData({ ...formData, initialRtgs: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.74rem', color: '#6b21a8', fontWeight: 800 }}>
+                    📱 UPI Online ({formData.currency}):
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input font-mono"
+                    style={{ fontSize: '0.825rem', padding: '0.45rem 0.65rem', border: '1px solid #d8b4fe' }}
+                    value={formData.initialUpi || 0}
+                    onChange={e => setFormData({ ...formData, initialUpi: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                  />
+                </div>
               </div>
             </div>
 

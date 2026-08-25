@@ -179,4 +179,37 @@ assert(repayResult.transaction.type === 'income', 'Loan repayment creates Income
 const rangeTxs = storage.getTransactionsBetween('2026-08-01', '2026-08-31');
 assert(rangeTxs.length >= 8, 'Found transactions within August date range');
 
-console.log('\n🎉 ALL LOGICAL, LOAN & RECONCILIATION TESTS PASSED PERFECTLY!\n');
+// 9. Test Initial Treasury Balances & Running Totals
+storage.setInitialTreasuryBalances({ cash: 50000, rtgs: 100000, upi: 20000 });
+const initialRes = storage.getInitialTreasuryBalances();
+assert(initialRes.cash === 50000, 'Initial Cash stored correctly as 50000');
+assert(initialRes.rtgs === 100000, 'Initial RTGS stored correctly as 100000');
+assert(initialRes.upi === 20000, 'Initial UPI stored correctly as 20000');
+
+// Add Admin Drawer Expense
+storage.addTransaction({
+  businessId: 'biz_default',
+  date: testDate,
+  time: '17:00',
+  type: 'expense',
+  amount: 1000,
+  paymentMethod: 'cash',
+  category: 'Owner Drawer Cash Withdrawal',
+  staffName: 'ADMIN',
+  note: 'Admin took cash from vault drawer',
+});
+
+const treasuryCalc = storage.calculateTreasuryBalances();
+console.log('Treasury Balances Calculated:', {
+  actualCash: treasuryCalc.actualCash,
+  actualRtgs: treasuryCalc.actualRtgs,
+  actualUpi: treasuryCalc.actualUpi,
+  actualTotal: treasuryCalc.actualTotal,
+  adminExpenseTotal: treasuryCalc.adminExpenseTotal,
+});
+
+assert(treasuryCalc.adminExpenseCash === 1000, 'Admin Cash Drawer Withdrawal recognized as 1000');
+assert(treasuryCalc.actualTotal > 0, 'Total actual money is positive');
+assert(treasuryCalc.actualTotal === treasuryCalc.actualCash + treasuryCalc.actualRtgs + treasuryCalc.actualUpi, 'Actual Total equals sum of Cash + RTGS + UPI');
+
+console.log('\n🎉 ALL LOGICAL, LOAN, TREASURY & RECONCILIATION TESTS PASSED PERFECTLY!\n');

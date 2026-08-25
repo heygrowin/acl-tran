@@ -115,6 +115,10 @@ export interface BusinessConfig {
   counters: CounterProfile[]; // dynamic list of counters managed by Admin
   defaultOpeningCash: number;
   defaultOpeningOnline: number;
+  // Treasury Initial Balances (Cash in Drawer/Safe, Bank RTGS, Online UPI)
+  initialCash?: number;
+  initialRtgs?: number;
+  initialUpi?: number;
   incomeCategories: string[];
   expenseCategories: string[];
   upiAccounts: string[]; // Dynamic list of UPI Accounts / QRs (e.g. 'Shop QR', 'GPay', etc.)
@@ -126,7 +130,7 @@ export interface BusinessConfig {
 
 export type CurrentScreen = 'landing' | 'employee' | 'admin';
 
-export type AdminTab = 'dashboard' | 'summary' | 'transactions' | 'loans' | 'closing' | 'reports' | 'settings';
+export type AdminTab = 'dashboard' | 'summary' | 'itemAnalysis' | 'transactions' | 'loans' | 'closing' | 'reports' | 'settings';
 
 export interface DayBalances {
   date: string;

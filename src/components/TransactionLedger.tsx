@@ -13,8 +13,13 @@ import {
   BarChart2,
   FileSpreadsheet,
   FileText,
+  Sliders,
+  Wallet,
+  Banknote,
+  Building,
+  QrCode,
 } from 'lucide-react';
-import { formatCurrency, getTodayDateString, formatDDMMYYYY } from '../services/storageService';
+import { formatCurrency, getTodayDateString, formatDDMMYYYY, storage } from '../services/storageService';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ExportModal } from './ExportModal';
 import { SummaryDrilldownModal } from './SummaryDrilldownModal';
@@ -53,6 +58,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     addTransaction,
     deleteTransaction,
     openCounterModal,
+    updateInitialBalances,
+    openItemHistoryModal,
     showToast,
   } = useApp();
 
@@ -76,6 +83,28 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     setDrilldownType(type);
     setDrilldownMethod(method);
     setIsDrilldownOpen(true);
+  };
+
+  // Initial Balances Modal State
+  const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
+  const [initCashInput, setInitCashInput] = useState('');
+  const [initRtgsInput, setInitRtgsInput] = useState('');
+  const [initUpiInput, setInitUpiInput] = useState('');
+
+  const handleOpenInitialBalanceModal = () => {
+    setInitCashInput((config.initialCash || 0).toString());
+    setInitRtgsInput((config.initialRtgs || 0).toString());
+    setInitUpiInput((config.initialUpi || 0).toString());
+    setIsInitialBalanceModalOpen(true);
+  };
+
+  const handleSaveInitialBalances = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cashVal = parseFloat(initCashInput) || 0;
+    const rtgsVal = parseFloat(initRtgsInput) || 0;
+    const upiVal = parseFloat(initUpiInput) || 0;
+    updateInitialBalances({ cash: cashVal, rtgs: rtgsVal, upi: upiVal });
+    setIsInitialBalanceModalOpen(false);
   };
 
   // Date Range for Summary Mode
@@ -177,6 +206,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       amount: number;
       type: 'income' | 'expense';
       originalTx?: Transaction;
+      paymentMethod?: string;
       isAuto?: boolean;
     }[] = [];
 
@@ -189,12 +219,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
         amount: t.amount,
         type: 'expense',
         originalTx: t,
+        paymentMethod: (t.paymentMethod || 'cash').toLowerCase(),
       });
     });
 
     // 2. Add explicit breakdown incomes (Green / Transferred / Explicit Cash in Hand)
     if (explicitBreakdownIncomes.length > 0) {
       explicitBreakdownIncomes.forEach(t => {
+        const cUpper = (t.category || '').trim().toUpperCase();
+        let method = (t.paymentMethod || 'cash').toLowerCase();
+        if (cUpper === 'BANK (RTGS)' || cUpper.includes('RTGS')) method = 'rtgs';
+        else if (cUpper.startsWith('UPI')) method = 'upi';
+        else if (cUpper === 'CASH IN HAND') method = 'cash';
+
         rightItems.push({
           id: t.id,
           title: formatExpenseTitle(t),
@@ -202,22 +239,24 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
           amount: t.amount,
           type: 'income',
           originalTx: t,
+          paymentMethod: method,
         });
       });
     } else {
       // 3. Otherwise add general non-cash sales incomes (RTGS & UPI)
       generalSalesIncomes
-        .filter(t => t.paymentMethod.toLowerCase() !== 'cash')
+        .filter(t => (t.paymentMethod || 'cash').toLowerCase() !== 'cash')
         .forEach(t => {
           const cat = (t.category || 'LAB WORK').toUpperCase();
-          const method = t.paymentMethod.toUpperCase();
+          const method = (t.paymentMethod || 'cash').toLowerCase();
           rightItems.push({
             id: t.id,
-            title: cat.includes(method) ? cat : `${cat} - ${method}`,
+            title: cat.includes(method.toUpperCase()) ? cat : `${cat} - ${method.toUpperCase()}`,
             subtitle: t.paymentAccount ? `UPI(${t.paymentAccount})` + (t.note ? ` * ${t.note}` : '') : t.note || t.customerPhone || undefined,
             amount: t.amount,
             type: 'income',
             originalTx: t,
+            paymentMethod: method,
           });
         });
     }
@@ -656,7 +695,14 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         receiveItems.map((item) => (
                           <div key={item.id} className="ledger-item-row">
                             <div className="ledger-item-left">
-                              <div className="ledger-item-title">{item.title}</div>
+                              <div
+                                className="ledger-item-title item-clickable-title"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => openItemHistoryModal(item.originalTx?.category || item.title)}
+                                title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
+                              >
+                                {item.title}
+                              </div>
                               {item.subtitle && (
                                 <div className="ledger-item-subtitle">
                                   <span>👤</span>
@@ -709,7 +755,20 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                           return (
                             <div key={item.id || `auto-${iIdx}`} className="ledger-item-row">
                               <div className="ledger-item-left">
-                                <div className="ledger-item-title">{item.title}</div>
+                                <div
+                                  className="ledger-item-title item-clickable-title"
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => {
+                                    if (item.originalTx) {
+                                      openItemHistoryModal(item.originalTx.category || item.title);
+                                    } else if (item.title && item.title !== 'CASH IN HAND') {
+                                      openItemHistoryModal(item.title);
+                                    }
+                                  }}
+                                  title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
+                                >
+                                  {item.title}
+                                </div>
                                 {item.subtitle && (
                                   <div className="ledger-item-subtitle">
                                     <span>👤</span>
@@ -958,28 +1017,28 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
           {/* Dark Blue Capsule Header Bar */}
           <div className="summary-dark-blue-capsule">
             <span className="col-title">Receive</span>
-            <span className="col-title">EXPENCE</span>
+            <span className="col-title">EXPENSE / BREAKDOWN</span>
           </div>
 
           {/* Grouped Payment Methods Summary */}
           {(() => {
-            // Group Receive by method with full drilldown triggers
-            const receiveCashTxs = scopedTransactions.filter(t => t && t.type === 'income' && (t.paymentMethod || 'cash').toString().toLowerCase() === 'cash' && !isRightSideEntry(t));
-            const receiveRtgsTxs = scopedTransactions.filter(t => t && t.type === 'income' && (t.paymentMethod || 'cash').toString().toLowerCase() === 'rtgs' && !isRightSideEntry(t));
-            const receiveUpiTxs = scopedTransactions.filter(t => t && t.type === 'income' && (t.paymentMethod || 'cash').toString().toLowerCase() === 'upi' && !isRightSideEntry(t));
+            // 1. Group Receive by payment method (excluding admin entries which belong to Treasury)
+            const allReceiveTxs = scopedTransactions.filter(
+              t => t && t.type === 'income' && !isRightSideEntry(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
+            );
+            const receiveCashTxs = allReceiveTxs.filter(t => (t.paymentMethod || 'cash').toString().toLowerCase() === 'cash');
+            const receiveRtgsTxs = allReceiveTxs.filter(t => (t.paymentMethod || '').toString().toLowerCase() === 'rtgs');
+            const receiveUpiTxs = allReceiveTxs.filter(t => (t.paymentMethod || '').toString().toLowerCase() === 'upi');
 
             const receiveCash = receiveCashTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveRtgs = receiveRtgsTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveUpi = receiveUpiTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
 
-            // Group Expense by method with full drilldown triggers
-            const expenseCashTxs = scopedTransactions.filter(t => t && isRightSideEntry(t) && (t.paymentMethod || 'cash').toString().toLowerCase() === 'cash');
-            const expenseRtgsTxs = scopedTransactions.filter(t => t && isRightSideEntry(t) && (t.paymentMethod || 'cash').toString().toLowerCase() === 'rtgs');
-            const expenseUpiTxs = scopedTransactions.filter(t => t && isRightSideEntry(t) && (t.paymentMethod || 'cash').toString().toLowerCase() === 'upi');
-
-            const expenseCash = expenseCashTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
-            const expenseRtgs = expenseRtgsTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
-            const expenseUpi = expenseUpiTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
+            // 2. Group all Expenses across the scoped transactions
+            const allExpenseTxs = scopedTransactions.filter(
+              t => t && t.type === 'expense' && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
+            );
+            const totalExpense = allExpenseTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
 
             return (
               <div style={{ padding: '0 0.5rem', minHeight: '180px', textAlign: 'left' }}>
@@ -1083,7 +1142,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                     </div>
                   </div>
 
-                  {/* Right Column: Expense Modes (Clickable) */}
+                  {/* Right Column: Breakdown & Expense Modes (Clickable) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
                     {/* CASH */}
                     <div
@@ -1103,21 +1162,21 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         transition: 'all 0.15s ease',
                       }}
                       onClick={() => handleOpenDrilldown('expense', 'cash')}
-                      title="Click to view all Expense CASH transactions"
+                      title="Click to view Cash transactions"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span>CASH</span>
                         <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {expenseCashTxs.length}
+                          {receiveCashTxs.length}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#dc2626' }}>{expenseCash.toLocaleString()}</span>
+                        <span style={{ color: '#0f172a' }}>{receiveCash.toLocaleString()}</span>
                         <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
                       </div>
                     </div>
 
-                    {/* BANK (RTGS) */}
+                    {/* RTGS */}
                     <div
                       className="summary-method-row"
                       style={{
@@ -1135,16 +1194,16 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         transition: 'all 0.15s ease',
                       }}
                       onClick={() => handleOpenDrilldown('expense', 'rtgs')}
-                      title="Click to view all Expense BANK (RTGS) transactions"
+                      title="Click to view RTGS transactions"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>BANK (RTGS)</span>
+                        <span>RTGS</span>
                         <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {expenseRtgsTxs.length}
+                          {receiveRtgsTxs.length}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#dc2626' }}>{expenseRtgs.toLocaleString()}</span>
+                        <span style={{ color: '#0f172a' }}>{receiveRtgs.toLocaleString()}</span>
                         <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
                       </div>
                     </div>
@@ -1167,42 +1226,458 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         transition: 'all 0.15s ease',
                       }}
                       onClick={() => handleOpenDrilldown('expense', 'upi')}
-                      title="Click to view all Expense UPI transactions"
+                      title="Click to view UPI transactions"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span>UPI</span>
                         <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {expenseUpiTxs.length}
+                          {receiveUpiTxs.length}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#dc2626' }}>{expenseUpi.toLocaleString()}</span>
+                        <span style={{ color: '#0f172a' }}>{receiveUpi.toLocaleString()}</span>
                         <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
                       </div>
                     </div>
+
+                    {/* OVERALL EXPENSE DEDUCTION (RED) */}
+                    {totalExpense > 0 && (
+                      <div
+                        className="summary-method-row"
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.85rem',
+                          textAlign: 'left',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          background: '#fef2f2',
+                          border: '1px dashed #fca5a5',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onClick={() => handleOpenDrilldown('expense', 'all')}
+                        title="Click to view all Expense transactions"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ color: '#991b1b' }}>LESS: EXPENSE</span>
+                          <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: 700 }}>
+                            {allExpenseTxs.length}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <span style={{ color: '#dc2626' }}>−{totalExpense.toLocaleString()}</span>
+                          <span style={{ color: '#f87171', fontSize: '0.85rem' }}>›</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })()}
 
-          {/* Green Grand Total Bar */}
-          <div className="grand-total-green-bar">
-            <div className="grand-total-left">
-              <span>GRANT TOTAL</span>
-              <span style={{ fontSize: '1.35rem' }}>{grandTotalReceive.toLocaleString()}</span>
-            </div>
+          {/* Green Grand Total Bar (Reconciled with 0 Discrepancy) */}
+          {(() => {
+            const allReceiveTxs = scopedTransactions.filter(
+              t => t && t.type === 'income' && !isRightSideEntry(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
+            );
+            const totalReceive = allReceiveTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
 
-            <div className="grand-diff-badge-wrap">
-              <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
-                {grandDifference === 0 ? '0' : grandDifference}
-              </span>
-            </div>
+            return (
+              <div className="grand-total-green-bar">
+                <div className="grand-total-left">
+                  <span>GRANT TOTAL</span>
+                  <span style={{ fontSize: '1.35rem' }}>{totalReceive.toLocaleString()}</span>
+                </div>
 
-            <div className="grand-total-right">
-              <span style={{ fontSize: '1.35rem' }}>{grandTotalRight.toLocaleString()}</span>
-            </div>
+                <div className="grand-diff-badge-wrap">
+                  <span style={{ color: '#000000', fontWeight: 900 }}>0</span>
+                </div>
+
+                <div className="grand-total-right">
+                  <span style={{ fontSize: '1.35rem' }}>{totalReceive.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Dual Rounded Black Pill Action Buttons (Exact UI as Daily Sheet - Logs to Admin) */}
+          <div className="demo-action-pills-row" style={{ marginTop: '1.25rem', marginBottom: '0.75rem' }}>
+            <button
+              type="button"
+              className="btn-black-pill"
+              onClick={() => openCounterModal('income', null, 'ADMIN')}
+              title="Add Admin Deposit / Receive entry"
+            >
+              <span className="pill-sub">ADD</span>
+              <span className="pill-main">Receive Entry</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-black-pill"
+              onClick={() => openCounterModal('expense', null, 'ADMIN')}
+              title="Add Admin Withdrawal / Expense entry"
+            >
+              <span className="pill-sub">ADD</span>
+              <span className="pill-main">Expence entry</span>
+            </button>
           </div>
+
+          {/* TREASURY STATS & CARDS */}
+          {(() => {
+            const treasury = storage.calculateTreasuryBalances(transactions);
+            return (
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  background: '#ffffff',
+                  border: '2px solid #0f172a',
+                  borderRadius: '12px',
+                  padding: '0.85rem 1rem',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Treasury Header (Clean with Set Initial Balance) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    marginBottom: '0.65rem',
+                    gap: '0.5rem',
+                  }}
+                >
+                  {/* Set Initial Balance Button */}
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      background: '#f8fafc',
+                      border: '1.5px solid #cbd5e1',
+                      borderRadius: '9999px',
+                      padding: '0.3rem 0.75rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      color: '#334155',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onClick={handleOpenInitialBalanceModal}
+                    title="Set or update Baseline Balances (Cash, Bank RTGS, UPI)"
+                  >
+                    <Sliders size={13} />
+                    <span>Set Initial Balance</span>
+                  </button>
+                </div>
+
+                {/* 4-Stat Cards Grid (Clean, Without Formula Clutter) */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {/* 1. CASH IN HAND */}
+                  <div
+                    style={{
+                      background: '#f0fdf4',
+                      border: '1.5px solid #86efac',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <Banknote size={14} /> CASH IN HAND
+                      </span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        Drawer / Safe
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534' }}>
+                      {formatCurrency(treasury.actualCash, config.currency)}
+                    </div>
+                  </div>
+
+                  {/* 2. RTGS (No "Bank") */}
+                  <div
+                    style={{
+                      background: '#eff6ff',
+                      border: '1.5px solid #93c5fd',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <Building size={14} /> RTGS
+                      </span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        Bank Balance
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualRtgs < 0 ? '#dc2626' : '#1e40af' }}>
+                      {formatCurrency(treasury.actualRtgs, config.currency)}
+                    </div>
+                  </div>
+
+                  {/* 3. UPI */}
+                  <div
+                    style={{
+                      background: '#faf5ff',
+                      border: '1.5px solid #d8b4fe',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <QrCode size={14} /> UPI
+                      </span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#7e22ce', background: '#f3e8ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        Online / QR
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualUpi < 0 ? '#dc2626' : '#6b21a8' }}>
+                      {formatCurrency(treasury.actualUpi, config.currency)}
+                    </div>
+                  </div>
+
+                  {/* 4. TOTAL ACTUAL MONEY */}
+                  <div
+                    style={{
+                      background: '#fffbeb',
+                      border: '2px solid #f59e0b',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                      boxShadow: '0 2px 6px rgba(245, 158, 11, 0.15)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 900, color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        💎 TOTAL ACTUAL MONEY
+                      </span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        Grand Total Liquid
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 900, color: treasury.actualTotal < 0 ? '#dc2626' : '#000000' }}>
+                      {formatCurrency(treasury.actualTotal, config.currency)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dedicated Admin Transactions Log Panel */}
+                {(() => {
+                  const adminTxsInScope = treasury.adminTransactions.filter(
+                    tx => (!summaryStartDate || tx.date >= summaryStartDate) && (!summaryEndDate || tx.date <= summaryEndDate)
+                  );
+                  const adminIncomeInScope = adminTxsInScope
+                    .filter(tx => tx.type === 'income')
+                    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                  const adminExpenseInScope = adminTxsInScope
+                    .filter(tx => tx.type === 'expense')
+                    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+                  return (
+                    <div
+                      style={{
+                        marginTop: '1rem',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        padding: '0.65rem 0.85rem',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.5rem',
+                          flexWrap: 'wrap',
+                          gap: '0.4rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                            🏛️ Admin Transactions Log
+                          </span>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '9999px', background: '#e2e8f0', color: '#475569' }}>
+                            {adminTxsInScope.length}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          {adminIncomeInScope > 0 && (
+                            <span style={{ fontSize: '0.675rem', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                              Income: +{formatCurrency(adminIncomeInScope, config.currency)}
+                            </span>
+                          )}
+                          {adminExpenseInScope > 0 && (
+                            <span style={{ fontSize: '0.675rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                              Withdrawal: −{formatCurrency(adminExpenseInScope, config.currency)}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            style={{
+                              fontSize: '0.675rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              background: '#ecfdf5',
+                              border: '1px solid #86efac',
+                              cursor: 'pointer',
+                              color: '#166534',
+                            }}
+                            onClick={() => openCounterModal('income', null, 'ADMIN')}
+                            title="Add Admin Deposit / Receive entry"
+                          >
+                            + Receive
+                          </button>
+                          <button
+                            type="button"
+                            style={{
+                              fontSize: '0.675rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '4px',
+                              background: '#fef2f2',
+                              border: '1px solid #fca5a5',
+                              cursor: 'pointer',
+                              color: '#991b1b',
+                            }}
+                            onClick={() => openCounterModal('expense', null, 'ADMIN')}
+                            title="Add Admin Withdrawal / Expense entry"
+                          >
+                            + Expense
+                          </button>
+                        </div>
+                      </div>
+
+                      {adminTxsInScope.length === 0 ? (
+                        <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.4rem 0' }}>
+                          No Admin personal withdrawals or deposit logs recorded yet.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '200px', overflowY: 'auto' }}>
+                          {adminTxsInScope.map(tx => {
+                            const isIncome = tx.type === 'income';
+                            const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                            return (
+                              <div
+                                key={tx.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  background: '#ffffff',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '6px',
+                                  padding: '0.35rem 0.6rem',
+                                  fontSize: '0.75rem',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                  <span
+                                    style={{
+                                      fontSize: '0.625rem',
+                                      fontWeight: 900,
+                                      padding: '0.1rem 0.35rem',
+                                      borderRadius: '4px',
+                                      background: isIncome ? '#dcfce7' : '#fee2e2',
+                                      color: isIncome ? '#166534' : '#991b1b',
+                                    }}
+                                  >
+                                    {isIncome ? '+ RECEIVE' : '− EXPENSE'}
+                                  </span>
+
+                                  <span
+                                    style={{
+                                      fontSize: '0.625rem',
+                                      fontWeight: 800,
+                                      padding: '0.1rem 0.35rem',
+                                      borderRadius: '4px',
+                                      background: '#f1f5f9',
+                                      color: '#334155',
+                                    }}
+                                  >
+                                    {methodUpper}
+                                  </span>
+
+                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <strong style={{ color: '#0f172a' }}>{tx.category || (isIncome ? 'Deposit' : 'Withdrawal')}</strong>
+                                    {tx.note && <span style={{ color: '#64748b', marginLeft: '0.35rem' }}>({tx.note})</span>}
+                                  </div>
+
+                                  <span style={{ fontSize: '0.675rem', color: '#94a3b8', marginLeft: '0.2rem' }}>
+                                    {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && tx.time ? ` • ${tx.time}` : ''}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                  <span style={{ fontWeight: 900, color: isIncome ? '#16a34a' : '#dc2626' }}>
+                                    {isIncome ? '+' : '−'}{formatCurrency(tx.amount, config.currency)}
+                                  </span>
+
+                                  <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                    <button
+                                      type="button"
+                                      className="icon-btn"
+                                      style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                      onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                      title="Edit Entry"
+                                    >
+                                      <Edit2 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="icon-btn"
+                                      style={{ width: '20px', height: '20px', color: '#dc2626' }}
+                                      onClick={() => {
+                                        if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                          deleteTransaction(tx.id);
+                                          showToast('Entry deleted', 'info');
+                                        }
+                                      }}
+                                      title="Delete Entry"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1226,6 +1701,190 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
           setSummaryEndDate(e);
         }}
       />
+
+      {/* Set Initial Treasury Balances Modal */}
+      {isInitialBalanceModalOpen && (
+        <div className="modal-backdrop animate-fade-in" style={{ zIndex: 100 }}>
+          <div
+            className="modal-container animate-scale-up"
+            style={{
+              maxWidth: '420px',
+              width: '92%',
+              background: '#ffffff',
+              borderRadius: '12px',
+              border: '2px solid #000000',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              textAlign: 'left',
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '0.6rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Wallet size={18} color="#0f172a" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 900, color: '#0f172a' }}>
+                  Set Initial / Baseline Balances
+                </h3>
+              </div>
+              <button
+                type="button"
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  borderRadius: '9999px',
+                  width: '26px',
+                  height: '26px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 900,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onClick={() => setIsInitialBalanceModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInitialBalances} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                Enter the baseline money already in your drawer, bank account, and UPI accounts before starting daily transaction logs.
+              </p>
+
+              {/* Initial Cash */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 800, color: '#166534', marginBottom: '0.3rem' }}>
+                  <Banknote size={14} /> Initial Cash In Hand (Drawer/Safe) (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1.5px solid #000000',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  placeholder="0"
+                  value={initCashInput}
+                  onChange={e => setInitCashInput(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {/* Initial RTGS */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 800, color: '#1e40af', marginBottom: '0.3rem' }}>
+                  <Building size={14} /> Initial Bank Balance (RTGS) (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1.5px solid #000000',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  placeholder="0"
+                  value={initRtgsInput}
+                  onChange={e => setInitRtgsInput(e.target.value)}
+                />
+              </div>
+
+              {/* Initial UPI */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 800, color: '#6b21a8', marginBottom: '0.3rem' }}>
+                  <QrCode size={14} /> Initial Online Balance (UPI) (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1.5px solid #000000',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  placeholder="0"
+                  value={initUpiInput}
+                  onChange={e => setInitUpiInput(e.target.value)}
+                />
+              </div>
+
+              {/* Live Sum Preview */}
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  padding: '0.5rem 0.75rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                }}
+              >
+                <span>Total Initial Baseline:</span>
+                <span style={{ color: '#0f172a', fontSize: '1rem' }}>
+                  {formatCurrency((parseFloat(initCashInput) || 0) + (parseFloat(initRtgsInput) || 0) + (parseFloat(initUpiInput) || 0), config.currency)}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '0.55rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setIsInitialBalanceModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1.5,
+                    padding: '0.55rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid #000000',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  Save Initial Balances
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -35,6 +35,7 @@ export type CloudConnectionState = 'connected' | 'connecting' | 'error' | 'disab
 interface AppContextType {
   config: BusinessConfig;
   updateConfig: (newConfig: BusinessConfig) => void;
+  updateInitialBalances: (balances: { cash: number; rtgs: number; upi: number }) => void;
   
   // Cloud & Firebase Status
   isCloudConnected: boolean;
@@ -101,6 +102,14 @@ interface AppContextType {
   openClosingModal: () => void;
   closeClosingModal: () => void;
 
+  // Item / Category Analysis Modal & Tab State
+  isItemHistoryModalOpen: boolean;
+  itemHistoryCategory: string;
+  selectedAnalysisCategory: string;
+  setSelectedAnalysisCategory: (cat: string) => void;
+  openItemHistoryModal: (category: string) => void;
+  closeItemHistoryModal: () => void;
+
   // Toast / Notification
   toastMessage: { text: string; type: 'success' | 'error' | 'info' } | null;
   showToast: (text: string, type?: 'success' | 'error' | 'info') => void;
@@ -133,6 +142,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [counterInitialStaff, setCounterInitialStaff] = useState<string | undefined>(undefined);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
+
+  // Item History Modal & Analysis State
+  const [isItemHistoryModalOpen, setIsItemHistoryModalOpen] = useState(false);
+  const [itemHistoryCategory, setItemHistoryCategory] = useState<string>('TEA');
+  const [selectedAnalysisCategory, setSelectedAnalysisCategory] = useState<string>('TEA');
+
+  const openItemHistoryModal = useCallback((category: string) => {
+    const cleanCat = category.trim() || 'TEA';
+    setItemHistoryCategory(cleanCat);
+    setSelectedAnalysisCategory(cleanCat);
+    setIsItemHistoryModalOpen(true);
+  }, []);
+
+  const closeItemHistoryModal = useCallback(() => {
+    setIsItemHistoryModalOpen(false);
+  }, []);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -375,6 +400,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Settings saved!');
   };
 
+  const updateInitialBalances = (balances: { cash: number; rtgs: number; upi: number }) => {
+    storage.setInitialTreasuryBalances(balances);
+    const updatedCfg = storage.getConfig();
+    setConfigState(updatedCfg);
+    saveConfigToCloud(updatedCfg);
+    refreshData();
+    showToast('Initial Balances saved successfully!', 'success');
+  };
+
   const counters = config.counters || [];
 
   const addCounter = (name: string, password?: string, color?: string) => {
@@ -426,7 +460,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    sound.playWarning();
     return false;
   };
 
@@ -443,11 +476,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       staffName: tx.staffName || selectedMember,
     });
     saveTransactionToCloud(newTx);
-    if (tx.type === 'income') {
-      sound.playIncome();
-    } else {
-      sound.playExpense();
-    }
     refreshData();
     showToast(`✓ ${tx.type === 'income' ? 'Income' : 'Expense'}: ₹${tx.amount.toLocaleString()}`);
     return newTx;
@@ -484,11 +512,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       closedBy: closing.closedBy || selectedMember,
     });
     saveClosingToCloud(res);
-    if (res.status === 'balanced') {
-      sound.playBalanced();
-    } else {
-      sound.playWarning();
-    }
     refreshData();
     showToast(`Day Closing: ${res.status === 'balanced' ? '✓ Money Matched' : res.status.toUpperCase()}`);
     return res;
@@ -505,7 +528,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = storage.giveLoan(borrowerName, borrowerPhone, amount, paymentMethod, selectedMember, selectedDate, notes);
     saveLoanToCloud(res.loan);
     saveTransactionToCloud(res.transaction);
-    sound.playExpense();
     refreshData();
     showToast(`Loan of ₹${amount.toLocaleString()} given to ${borrowerName}`);
   };
@@ -519,7 +541,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = storage.repayLoan(loanId, amount, paymentMethod, selectedMember, selectedDate, notes);
     saveLoanToCloud(res.loan);
     saveTransactionToCloud(res.transaction);
-    sound.playIncome();
     refreshData();
     showToast(`Loan repayment of ₹${amount.toLocaleString()} received!`);
   };
@@ -574,6 +595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         config,
         updateConfig,
+        updateInitialBalances,
         isCloudConnected,
         cloudStatus,
         cloudErrorMessage,
@@ -620,6 +642,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isClosingModalOpen,
         openClosingModal,
         closeClosingModal,
+        isItemHistoryModalOpen,
+        itemHistoryCategory,
+        selectedAnalysisCategory,
+        setSelectedAnalysisCategory,
+        openItemHistoryModal,
+        closeItemHistoryModal,
         toastMessage,
         showToast,
       }}

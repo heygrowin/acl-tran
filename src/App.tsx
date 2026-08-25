@@ -6,6 +6,7 @@ import { EmployeeScreen } from './components/EmployeeScreen';
 import { AdminScreen } from './components/AdminScreen';
 import { CounterTerminal } from './components/CounterTerminal';
 import { DailyClosingModal } from './components/DailyClosingModal';
+import { ItemHistoryModal } from './components/ItemHistoryModal';
 import {
   CheckCircle,
   AlertCircle,
@@ -21,6 +22,9 @@ const MainApp: React.FC = () => {
     closeCounterModal,
     counterInitialType,
     counterInitialStaff,
+    isItemHistoryModalOpen,
+    closeItemHistoryModal,
+    itemHistoryCategory,
     toastMessage,
   } = useApp();
 
@@ -40,6 +44,11 @@ const MainApp: React.FC = () => {
         initialStaff={counterInitialStaff}
       />
       <DailyClosingModal />
+      <ItemHistoryModal
+        isOpen={isItemHistoryModalOpen}
+        onClose={closeItemHistoryModal}
+        category={itemHistoryCategory}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -2,6 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { HeroStats } from './HeroStats';
 import { TransactionLedger } from './TransactionLedger';
+import { ItemAnalysisScreen } from './ItemAnalysisScreen';
 import { LoanManager } from './LoanManager';
 import { ReportsAnalytics } from './ReportsAnalytics';
 import { SettingsModal } from './SettingsModal';
@@ -14,6 +15,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Layers,
 } from 'lucide-react';
 
 export const AdminScreen: React.FC = () => {
@@ -67,7 +69,17 @@ export const AdminScreen: React.FC = () => {
           <span>Summary</span>
         </button>
 
-        {/* Install App button right next to Summary */}
+        {/* Item Analysis Tab right next to Summary */}
+        <button
+          className={`nav-tab-btn ${adminTab === 'itemAnalysis' ? 'active' : ''}`}
+          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
+          onClick={() => setAdminTab('itemAnalysis')}
+        >
+          <Layers size={13} />
+          <span>Item Analysis</span>
+        </button>
+
+        {/* Install App button */}
         <PWAInstallButton />
 
         <button
@@ -112,6 +124,10 @@ export const AdminScreen: React.FC = () => {
 
         {adminTab === 'summary' && (
           <TransactionLedger initialMode="summary" />
+        )}
+
+        {adminTab === 'itemAnalysis' && (
+          <ItemAnalysisScreen />
         )}
 
         {adminTab === 'transactions' && (
