@@ -150,7 +150,7 @@ export const HeroStats: React.FC = () => {
           gap: '0.4rem',
           cursor: 'pointer',
         }}
-        onClick={openClosingModal}
+        onClick={() => openClosingModal()}
         title="Click to perform or view End-of-Day Closing"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flexWrap: 'wrap' }}>

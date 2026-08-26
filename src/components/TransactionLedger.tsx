@@ -8,9 +8,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  Layers,
-  BarChart2,
   FileSpreadsheet,
   FileText,
   Sliders,
@@ -20,7 +17,6 @@ import {
   QrCode,
 } from 'lucide-react';
 import { formatCurrency, getTodayDateString, formatDDMMYYYY, storage } from '../services/storageService';
-import { PWAInstallButton } from './PWAInstallButton';
 import { ExportModal } from './ExportModal';
 import { SummaryDrilldownModal } from './SummaryDrilldownModal';
 
@@ -55,22 +51,36 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     setSelectedDate,
     config,
     counters,
-    addTransaction,
     deleteTransaction,
     openCounterModal,
+    openClosingModal,
     updateInitialBalances,
     openItemHistoryModal,
     showToast,
+    currentScreen,
+    selectedMember,
   } = useApp();
 
   const todayStr = getTodayDateString();
   const dateInputRef = useRef<HTMLInputElement>(null);
 
+  const isEmployee = currentScreen === 'employee' || (selectedMember && selectedMember !== 'Admin / Owner');
+
+  // Date restrictions: Employees cannot see more than 3 days in the past or future
+  const minAllowedDate = isEmployee
+    ? (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 3);
+        return d.toISOString().split('T')[0];
+      })()
+    : undefined;
+
+  const maxAllowedDate = isEmployee ? todayStr : undefined;
+
   // Local View and Filter States
-  const [viewMode, setViewMode] = useState<'sheet' | 'summary' | 'table'>(initialMode);
+  const viewMode = initialMode;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'upi' | 'rtgs'>('all');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [exportDefaultFormat, setExportDefaultFormat] = useState<'excel' | 'csv'>('excel');
 
@@ -109,6 +119,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   // Date Range for Summary Mode
   const [summaryStartDate, setSummaryStartDate] = useState(() => {
+    if (isEmployee) {
+      const d = new Date();
+      d.setDate(d.getDate() - 3);
+      return d.toISOString().split('T')[0];
+    }
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; // 1st of month
   });
@@ -120,13 +135,22 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   const handlePrevDay = () => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    const newDateStr = d.toISOString().split('T')[0];
+    if (minAllowedDate && newDateStr < minAllowedDate) {
+      showToast('You can view records up to 3 days in the past', 'info');
+      return;
+    }
+    setSelectedDate(newDateStr);
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    const newDateStr = d.toISOString().split('T')[0];
+    if (maxAllowedDate && newDateStr > maxAllowedDate) {
+      return;
+    }
+    setSelectedDate(newDateStr);
   };
 
   // Quick Preset Handlers for Summary Range
@@ -143,18 +167,27 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       setSummaryEndDate(yStr);
     } else if (preset === '7days') {
       const d7 = new Date();
-      d7.setDate(d7.getDate() - 6);
+      d7.setDate(d7.getDate() - (isEmployee ? 3 : 6));
       setSummaryStartDate(d7.toISOString().split('T')[0]);
       setSummaryEndDate(todayStr);
     } else if (preset === 'thisMonth') {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      setSummaryStartDate(firstDay);
+      if (isEmployee && minAllowedDate) {
+        setSummaryStartDate(minAllowedDate);
+      } else {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        setSummaryStartDate(firstDay);
+      }
       setSummaryEndDate(todayStr);
     } else if (preset === 'lastMonth') {
-      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-      setSummaryStartDate(firstDayLastMonth);
-      setSummaryEndDate(lastDayLastMonth);
+      if (isEmployee && minAllowedDate) {
+        setSummaryStartDate(minAllowedDate);
+        setSummaryEndDate(todayStr);
+      } else {
+        const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+        const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        setSummaryStartDate(firstDayLastMonth);
+        setSummaryEndDate(lastDayLastMonth);
+      }
     }
   };
 
@@ -164,6 +197,13 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       if (t.date < summaryStartDate || t.date > summaryEndDate) return false;
     } else {
       if (t.date !== selectedDate) return false;
+    }
+
+    // If Employee / Counter is logged in, show ONLY their own counter transactions!
+    if (isEmployee && selectedMember) {
+      if ((t.staffName || '').trim().toUpperCase() !== selectedMember.trim().toUpperCase()) {
+        return false;
+      }
     }
 
     if (filterMethod !== 'all') {
@@ -264,43 +304,6 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     return rightItems;
   };
 
-  // Helper to load exact sample data from image if empty or requested
-  const handleLoadSampleData = () => {
-    if (confirm('Load demo sheet entries matching the reference sheet for ' + selectedDate + '?')) {
-      const sampleTxs: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>[] = [
-        // KRISHNA
-        { businessId: config.id, date: selectedDate, time: '10:00', type: 'income', amount: 4000, paymentMethod: 'cash', category: 'LAB WORK', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '10:15', type: 'income', amount: 1200, paymentMethod: 'rtgs', category: 'LAB WORK', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '10:30', type: 'income', amount: 5000, paymentMethod: 'upi', category: 'LAB WORK', note: 'STORYBY DEEPAK', paymentAccount: 'RUPAY', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '11:00', type: 'expense', amount: 300, paymentMethod: 'cash', category: 'FOOD', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '11:15', type: 'expense', amount: 80, paymentMethod: 'cash', category: 'TEA', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '11:30', type: 'expense', amount: 1200, paymentMethod: 'cash', category: 'TRANSPORTING', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '12:00', type: 'expense', amount: 420, paymentMethod: 'cash', category: 'PARSAL', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '12:30', type: 'income', amount: 1200, paymentMethod: 'rtgs', category: 'BANK (RTGS)', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '13:00', type: 'income', amount: 1200, paymentMethod: 'upi', category: 'UPI AVC RAM )', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '13:15', type: 'income', amount: 800, paymentMethod: 'upi', category: 'UPI AP (APSARA)', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '13:30', type: 'income', amount: 2000, paymentMethod: 'upi', category: 'UPI RUPA (RAJA )', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '13:45', type: 'income', amount: 1000, paymentMethod: 'upi', category: 'UPI RAJ (RAM STU)', staffName: 'KRISHNA' },
-        { businessId: config.id, date: selectedDate, time: '14:00', type: 'income', amount: 2000, paymentMethod: 'cash', category: 'CASH IN HAND', staffName: 'KRISHNA' },
-
-        // NAVIN
-        { businessId: config.id, date: selectedDate, time: '10:00', type: 'income', amount: 1000, paymentMethod: 'cash', category: 'LAB WORK', staffName: 'NAVIN' },
-        { businessId: config.id, date: selectedDate, time: '10:15', type: 'income', amount: 300, paymentMethod: 'rtgs', category: 'LAB WORK', staffName: 'NAVIN' },
-        { businessId: config.id, date: selectedDate, time: '10:30', type: 'income', amount: 2000, paymentMethod: 'upi', category: 'LAB WORK', note: 'S. RAJA', paymentAccount: 'RUPAI', staffName: 'NAVIN' },
-        { businessId: config.id, date: selectedDate, time: '11:00', type: 'income', amount: 300, paymentMethod: 'rtgs', category: 'BANK (RTGS)', staffName: 'NAVIN' },
-        { businessId: config.id, date: selectedDate, time: '11:30', type: 'income', amount: 2000, paymentMethod: 'upi', category: 'UPI AP', staffName: 'NAVIN' },
-        { businessId: config.id, date: selectedDate, time: '12:00', type: 'income', amount: 950, paymentMethod: 'cash', category: 'CASH IN HAND', staffName: 'NAVIN' },
-
-        // OTHER
-        { businessId: config.id, date: selectedDate, time: '10:00', type: 'income', amount: 50, paymentMethod: 'cash', category: 'GOODS', staffName: 'OTHER' },
-        { businessId: config.id, date: selectedDate, time: '10:15', type: 'income', amount: 100, paymentMethod: 'upi', category: 'GOODS', staffName: 'OTHER' },
-        { businessId: config.id, date: selectedDate, time: '11:00', type: 'income', amount: 100, paymentMethod: 'upi', category: 'UPI ANSH RAJPUT', staffName: 'OTHER' },
-        { businessId: config.id, date: selectedDate, time: '11:30', type: 'income', amount: 50, paymentMethod: 'cash', category: 'CASH IN HAND', staffName: 'OTHER' },
-      ];
-      sampleTxs.forEach(t => addTransaction(t));
-    }
-  };
-
   // Handle Edit / Delete Actions
   const handleDelete = (tx: Transaction) => {
     const isCashInHand = (tx.category || '').trim().toUpperCase() === 'CASH IN HAND';
@@ -351,27 +354,31 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   };
 
   // Counter Profiles List (exclude Admin / Owner so no duplicate administrative counter is rendered)
-  const definedCounterNames = [
-    ...(counters || []).map(c => c.name.toUpperCase()),
-    ...(config.staffMembers || []).map(s => s.toUpperCase()),
-    'KRISHNA',
-    'NAVIN',
-    'OTHER',
-  ].filter(name => !['ADMIN / OWNER', 'ADMIN', 'OWNER'].includes(name));
+  const allCounterNames: string[] = isEmployee && selectedMember
+    ? [selectedMember.toUpperCase()]
+    : (() => {
+        const defined = [
+          ...(counters || []).map(c => c.name.toUpperCase()),
+          ...(config.staffMembers || []).map(s => s.toUpperCase()),
+          'KRISHNA',
+          'NAVIN',
+          'OTHER',
+        ].filter(name => !['ADMIN / OWNER', 'ADMIN', 'OWNER'].includes(name));
 
-  // Distinct Counter Names (preserves order)
-  const allCounterNames: string[] = [];
-  definedCounterNames.forEach(name => {
-    if (!allCounterNames.includes(name)) allCounterNames.push(name);
-  });
+        const names: string[] = [];
+        defined.forEach(name => {
+          if (!names.includes(name)) names.push(name);
+        });
 
-  // Include any custom counter present in scoped transactions (excluding Admin / Owner)
-  scopedTransactions.forEach(t => {
-    const sName = (t.staffName || 'OTHER').trim().toUpperCase();
-    if (!['ADMIN / OWNER', 'ADMIN', 'OWNER'].includes(sName) && !allCounterNames.includes(sName)) {
-      allCounterNames.push(sName);
-    }
-  });
+        // Include any custom counter present in scoped transactions (excluding Admin / Owner)
+        scopedTransactions.forEach(t => {
+          const sName = (t.staffName || 'OTHER').trim().toUpperCase();
+          if (!['ADMIN / OWNER', 'ADMIN', 'OWNER'].includes(sName) && !names.includes(sName)) {
+            names.push(sName);
+          }
+        });
+        return names;
+      })();
 
   // Calculate Overall Grand Totals across all counters
   let grandTotalReceive = 0;
@@ -394,158 +401,106 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   return (
     <div className="demo-pack-container animate-fade-in">
-      {/* Top Utility & View Mode Bar */}
+      {/* Primary Top Header: Store Title + Search & Mode Filter */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '0.75rem',
-          paddingBottom: '0.4rem',
-          borderBottom: '1px solid #f1f5f9',
+          marginBottom: '0.65rem',
           flexWrap: 'wrap',
-          gap: '0.4rem',
+          gap: '0.5rem',
         }}
       >
-        {/* Mode Selector Tabs + Install App right to Summary */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', gap: '0.2rem' }}>
-            <button
-              type="button"
-              className={`nav-tab-btn ${viewMode === 'sheet' ? 'active' : ''}`}
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', fontWeight: 800 }}
-              onClick={() => setViewMode('sheet')}
-            >
-              <Layers size={13} />
-              <span>Daily Sheet</span>
-            </button>
-            <button
-              type="button"
-              className={`nav-tab-btn ${viewMode === 'summary' ? 'active' : ''}`}
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', fontWeight: 800 }}
-              onClick={() => setViewMode('summary')}
-            >
-              <BarChart2 size={13} />
-              <span>Summary</span>
-            </button>
-          </div>
+        <h1 className="demo-sheet-title" style={{ margin: 0, textAlign: 'left' }}>
+          {config.businessName || 'DEMOSTRATION PACK'}
+        </h1>
 
-          {/* Install App button just right to Summary */}
-          <PWAInstallButton />
-        </div>
-
-        {/* Quick Demo Data & Search / Filter Toggles */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          {scopedTransactions.length === 0 && (
-            <button
-              type="button"
-              style={{
-                fontSize: '0.7rem',
-                padding: '0.25rem 0.55rem',
-                borderRadius: '6px',
-                background: '#f0fdf4',
-                color: '#15803d',
-                border: '1px solid #bbf7d0',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-              onClick={handleLoadSampleData}
-              title="Load demo sheet entries matching reference mockup"
-            >
-              + Load Demo Data
-            </button>
-          )}
-
-          <button
-            type="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.25rem',
-              padding: '0.25rem 0.55rem',
-              borderRadius: '6px',
-              background: isFilterOpen ? '#eff6ff' : '#f8fafc',
-              border: `1px solid ${isFilterOpen ? '#bfdbfe' : '#cbd5e1'}`,
-              color: isFilterOpen ? '#1d4ed8' : '#475569',
-              fontSize: '0.725rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-          >
-            <Filter size={12} />
-            <span>Filter / Search</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter / Search Collapsible Box */}
-      {isFilterOpen && (
-        <div
-          className="animate-scale-in"
-          style={{
-            background: '#f8fafc',
-            border: '1px solid #e2e8f0',
-            borderRadius: '6px',
-            padding: '0.5rem 0.75rem',
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: '150px' }}>
-            <Search size={13} style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+        {/* Search & Mode Filter right in primary header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', minWidth: '220px', flex: '0 1 auto' }}>
+          <div style={{ position: 'relative', minWidth: '150px', maxWidth: '240px', flex: 1 }}>
+            <Search size={13} style={{ position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               type="text"
               className="form-input"
-              style={{ paddingLeft: '1.9rem', fontSize: '0.775rem', padding: '0.3rem 0.55rem 0.3rem 1.9rem', width: '100%' }}
-              placeholder="Search head, note, amount, phone..."
+              style={{
+                paddingLeft: '1.75rem',
+                paddingRight: searchTerm ? '1.5rem' : '0.5rem',
+                paddingTop: '0.25rem',
+                paddingBottom: '0.25rem',
+                fontSize: '0.75rem',
+                borderRadius: '6px',
+                width: '100%',
+              }}
+              placeholder="Search entry, note, phone..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button
+                type="button"
+                style={{
+                  position: 'absolute',
+                  right: '0.4rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#dc2626',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
 
           <select
             className="form-input"
-            style={{ width: 'auto', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+            style={{
+              width: 'auto',
+              fontSize: '0.725rem',
+              padding: '0.25rem 0.45rem',
+              borderRadius: '6px',
+            }}
             value={filterMethod}
             onChange={e => setFilterMethod(e.target.value as 'all' | 'cash' | 'upi' | 'rtgs')}
           >
             <option value="all">All Modes</option>
-            <option value="cash">Cash Only</option>
-            <option value="upi">UPI Only</option>
-            <option value="rtgs">RTGS Only</option>
+            <option value="cash">Cash</option>
+            <option value="upi">UPI</option>
+            <option value="rtgs">RTGS</option>
           </select>
-
-          {searchTerm && (
-            <button
-              type="button"
-              style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none' }}
-              onClick={() => setSearchTerm('')}
-            >
-              Clear
-            </button>
-          )}
         </div>
-      )}
+      </div>
 
       {/* =========================================================================
          VIEW 1: DAILY OVERVIEW SHEET (IMAGE 2)
          ========================================================================= */}
-      {viewMode === 'sheet' && (
+      {(isEmployee || viewMode === 'sheet') && (
         <div>
-          {/* Main Sheet Title */}
-          <h1 className="demo-sheet-title">{config.businessName || 'DEMOSTRATION PACK'}</h1>
 
           {/* Interactive Date Row */}
           <div className="demo-sheet-date-row">
             <button
               type="button"
               className="icon-btn"
-              style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#f1f5f9' }}
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: '#f1f5f9',
+                opacity: minAllowedDate && selectedDate <= minAllowedDate ? 0.4 : 1,
+                cursor: minAllowedDate && selectedDate <= minAllowedDate ? 'not-allowed' : 'pointer',
+              }}
               onClick={handlePrevDay}
+              disabled={!!(minAllowedDate && selectedDate <= minAllowedDate)}
               title="Previous Day"
             >
               <ChevronLeft size={16} />
@@ -554,7 +509,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             <div
               className="demo-sheet-date-text"
               onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
-              title="Click to select any date"
+              title="Click to select date"
             >
               <Calendar size={17} style={{ color: '#1a1a9e' }} />
               <span>{formatDDMMYYYY(selectedDate)}</span>
@@ -570,9 +525,22 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   height: 0,
                   pointerEvents: 'none',
                 }}
+                min={minAllowedDate}
+                max={maxAllowedDate}
                 value={selectedDate}
                 onChange={e => {
-                  if (e.target.value) setSelectedDate(e.target.value);
+                  if (e.target.value) {
+                    if (minAllowedDate && e.target.value < minAllowedDate) {
+                      showToast('Employees can only view records up to 3 days in the past', 'info');
+                      setSelectedDate(minAllowedDate);
+                      return;
+                    }
+                    if (maxAllowedDate && e.target.value > maxAllowedDate) {
+                      setSelectedDate(maxAllowedDate);
+                      return;
+                    }
+                    setSelectedDate(e.target.value);
+                  }
                 }}
               />
             </div>
@@ -580,8 +548,16 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             <button
               type="button"
               className="icon-btn"
-              style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#f1f5f9' }}
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: '#f1f5f9',
+                opacity: maxAllowedDate && selectedDate >= maxAllowedDate ? 0.4 : 1,
+                cursor: maxAllowedDate && selectedDate >= maxAllowedDate ? 'not-allowed' : 'pointer',
+              }}
               onClick={handleNextDay}
+              disabled={!!(maxAllowedDate && selectedDate >= maxAllowedDate)}
               title="Next Day"
             >
               <ChevronRight size={16} />
@@ -612,7 +588,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             <button
               type="button"
               className="btn-black-pill"
-              onClick={() => openCounterModal('income')}
+              onClick={() => openCounterModal('income', undefined, isEmployee ? selectedMember : undefined)}
             >
               <span className="pill-sub">ADD</span>
               <span className="pill-main">Receive Entry</span>
@@ -621,7 +597,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             <button
               type="button"
               className="btn-black-pill"
-              onClick={() => openCounterModal('expense')}
+              onClick={() => openCounterModal('expense', undefined, isEmployee ? selectedMember : undefined)}
             >
               <span className="pill-sub">ADD</span>
               <span className="pill-main">Expence entry</span>
@@ -839,11 +815,39 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       <span style={{ fontSize: '0.95rem' }}>{subtotalReceive.toLocaleString()}</span>
                     </div>
 
-                    <div className="cash-diff-badge-wrap">
-                      <div className="cash-diff-label">{counterDiff !== 0 ? 'CASH DIFF.' : 'CASH'}</div>
-                      <div className={`cash-diff-val ${counterDiff < 0 ? 'negative' : counterDiff > 0 ? 'positive' : ''}`}>
-                        {counterDiff === 0 ? '0' : counterDiff}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+                      <div className="cash-diff-badge-wrap">
+                        <div className="cash-diff-label">{counterDiff !== 0 ? 'CASH DIFF.' : 'CASH'}</div>
+                        <div className={`cash-diff-val ${counterDiff < 0 ? 'negative' : counterDiff > 0 ? 'positive' : ''}`}>
+                          {counterDiff === 0 ? '0' : counterDiff}
+                        </div>
                       </div>
+
+                      {/* Cash in Hand button positioned right to Cash Difference */}
+                      <button
+                        type="button"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          background: '#0f172a',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '0.3rem 0.55rem',
+                          fontSize: '0.725rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onClick={() => openClosingModal(counterName)}
+                        title={`Record Cash in Hand for ${counterName}`}
+                      >
+                        <Banknote size={11} />
+                        <span>Cash in Hand</span>
+                      </button>
                     </div>
 
                     <div className="subtotal-pink-right">
@@ -862,10 +866,38 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
               <span style={{ fontSize: '1.35rem' }}>{grandTotalReceive.toLocaleString()}</span>
             </div>
 
-            <div className="grand-diff-badge-wrap">
-              <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
-                {grandDifference === 0 ? '0' : grandDifference}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center' }}>
+              <div className="grand-diff-badge-wrap">
+                <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
+                  {grandDifference === 0 ? '0' : grandDifference}
+                </span>
+              </div>
+
+              {/* Cash in Hand button positioned right to Grand Difference */}
+              <button
+                type="button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  background: '#000000',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.775rem',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={() => openClosingModal()}
+                title="Record Cash in Hand (Physical count)"
+              >
+                <Banknote size={12} />
+                <span>Cash in Hand</span>
+              </button>
             </div>
 
             <div className="grand-total-right">
@@ -878,7 +910,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       {/* =========================================================================
          VIEW 2: DATE-RANGE SUMMARY VIEW (IMAGE 1)
          ========================================================================= */}
-      {viewMode === 'summary' && (
+      {!isEmployee && viewMode === 'summary' && (
         <div className="animate-fade-in">
           {/* Summary Header Title */}
           <h1 className="demo-sheet-title" style={{ color: '#1a1a9e', letterSpacing: '0.04em' }}>
@@ -1014,15 +1046,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             </div>
           </div>
 
-          {/* Dark Blue Capsule Header Bar */}
-          <div className="summary-dark-blue-capsule">
-            <span className="col-title">Receive</span>
-            <span className="col-title">EXPENSE / BREAKDOWN</span>
-          </div>
-
-          {/* Grouped Payment Methods Summary */}
+          {/* Grouped Payment Methods Summary - Simplified Clean CASH, RTGS, UPI & GRAND TOTAL */}
           {(() => {
-            // 1. Group Receive by payment method (excluding admin entries which belong to Treasury)
             const allReceiveTxs = scopedTransactions.filter(
               t => t && t.type === 'income' && !isRightSideEntry(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
             );
@@ -1033,272 +1058,126 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             const receiveCash = receiveCashTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveRtgs = receiveRtgsTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveUpi = receiveUpiTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
-
-            // 2. Group all Expenses across the scoped transactions
-            const allExpenseTxs = scopedTransactions.filter(
-              t => t && t.type === 'expense' && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
-            );
-            const totalExpense = allExpenseTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
+            const totalReceive = receiveCash + receiveRtgs + receiveUpi;
 
             return (
-              <div style={{ padding: '0 0.5rem', minHeight: '180px', textAlign: 'left' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', textAlign: 'left' }}>
-                  {/* Left Column: Receive Modes (Clickable) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
-                    {/* CASH */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('receive', 'cash')}
-                      title="Click to view all Receive CASH transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>CASH</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveCashTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#16a34a' }}>{receiveCash.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
+              <div style={{ maxWidth: '640px', margin: '0.85rem auto 1.25rem auto', padding: '0 0.5rem', textAlign: 'left' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', textAlign: 'left' }}>
+                  {/* CASH */}
+                  <div
+                    className="summary-method-row"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      textAlign: 'left',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: '#f8fafc',
+                      border: '1.5px solid #e2e8f0',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                    onClick={() => handleOpenDrilldown('receive', 'cash')}
+                    title="Click to view all CASH transactions"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 900, color: '#0f172a' }}>CASH</span>
+                      <span style={{ fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 800 }}>
+                        {receiveCashTxs.length}
+                      </span>
                     </div>
-
-                    {/* RTGS */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('receive', 'rtgs')}
-                      title="Click to view all Receive RTGS transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>RTGS</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveRtgsTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#16a34a' }}>{receiveRtgs.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
-                    </div>
-
-                    {/* UPI */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('receive', 'upi')}
-                      title="Click to view all Receive UPI transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>UPI</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveUpiTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#16a34a' }}>{receiveUpi.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>{receiveCash.toLocaleString()}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
                     </div>
                   </div>
 
-                  {/* Right Column: Breakdown & Expense Modes (Clickable) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', textAlign: 'left' }}>
-                    {/* CASH */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('expense', 'cash')}
-                      title="Click to view Cash transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>CASH</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveCashTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#0f172a' }}>{receiveCash.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
+                  {/* RTGS */}
+                  <div
+                    className="summary-method-row"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      textAlign: 'left',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: '#f8fafc',
+                      border: '1.5px solid #e2e8f0',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                    onClick={() => handleOpenDrilldown('receive', 'rtgs')}
+                    title="Click to view all RTGS transactions"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 900, color: '#0f172a' }}>RTGS</span>
+                      <span style={{ fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 800 }}>
+                        {receiveRtgsTxs.length}
+                      </span>
                     </div>
-
-                    {/* RTGS */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('expense', 'rtgs')}
-                      title="Click to view RTGS transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>RTGS</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveRtgsTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#0f172a' }}>{receiveRtgs.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>{receiveRtgs.toLocaleString()}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
                     </div>
+                  </div>
 
-                    {/* UPI */}
-                    <div
-                      className="summary-method-row"
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: 800,
-                        fontSize: '0.925rem',
-                        textAlign: 'left',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => handleOpenDrilldown('expense', 'upi')}
-                      title="Click to view UPI transactions"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span>UPI</span>
-                        <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 700 }}>
-                          {receiveUpiTxs.length}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <span style={{ color: '#0f172a' }}>{receiveUpi.toLocaleString()}</span>
-                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>›</span>
-                      </div>
+                  {/* UPI */}
+                  <div
+                    className="summary-method-row"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      textAlign: 'left',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: '#f8fafc',
+                      border: '1.5px solid #e2e8f0',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                    onClick={() => handleOpenDrilldown('receive', 'upi')}
+                    title="Click to view all UPI transactions"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 900, color: '#0f172a' }}>UPI</span>
+                      <span style={{ fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 800 }}>
+                        {receiveUpiTxs.length}
+                      </span>
                     </div>
-
-                    {/* OVERALL EXPENSE DEDUCTION (RED) */}
-                    {totalExpense > 0 && (
-                      <div
-                        className="summary-method-row"
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.85rem',
-                          textAlign: 'left',
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          background: '#fef2f2',
-                          border: '1px dashed #fca5a5',
-                          transition: 'all 0.15s ease',
-                        }}
-                        onClick={() => handleOpenDrilldown('expense', 'all')}
-                        title="Click to view all Expense transactions"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ color: '#991b1b' }}>LESS: EXPENSE</span>
-                          <span style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: 700 }}>
-                            {allExpenseTxs.length}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <span style={{ color: '#dc2626' }}>−{totalExpense.toLocaleString()}</span>
-                          <span style={{ color: '#f87171', fontSize: '0.85rem' }}>›</span>
-                        </div>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>{receiveUpi.toLocaleString()}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
 
-          {/* Green Grand Total Bar (Reconciled with 0 Discrepancy) */}
-          {(() => {
-            const allReceiveTxs = scopedTransactions.filter(
-              t => t && t.type === 'income' && !isRightSideEntry(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
-            );
-            const totalReceive = allReceiveTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
-
-            return (
-              <div className="grand-total-green-bar">
-                <div className="grand-total-left">
-                  <span>GRANT TOTAL</span>
-                  <span style={{ fontSize: '1.35rem' }}>{totalReceive.toLocaleString()}</span>
-                </div>
-
-                <div className="grand-diff-badge-wrap">
-                  <span style={{ color: '#000000', fontWeight: 900 }}>0</span>
-                </div>
-
-                <div className="grand-total-right">
-                  <span style={{ fontSize: '1.35rem' }}>{totalReceive.toLocaleString()}</span>
+                {/* Green Grand Total Bar */}
+                <div
+                  className="grand-total-green-bar"
+                  style={{
+                    borderRadius: '8px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.75rem 1.25rem',
+                    marginTop: '0.75rem',
+                    boxShadow: '0 3px 8px rgba(98, 216, 98, 0.35)',
+                  }}
+                >
+                  <span style={{ fontSize: '1.15rem', fontWeight: 900, letterSpacing: '0.02em' }}>GRAND TOTAL</span>
+                  <span style={{ fontSize: '1.45rem', fontWeight: 900 }}>{totalReceive.toLocaleString()}</span>
                 </div>
               </div>
             );

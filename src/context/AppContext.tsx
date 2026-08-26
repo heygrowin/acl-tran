@@ -99,7 +99,8 @@ interface AppContextType {
   closeCounterModal: () => void;
 
   isClosingModalOpen: boolean;
-  openClosingModal: () => void;
+  closingTargetStaff?: string;
+  openClosingModal: (targetStaff?: string) => void;
   closeClosingModal: () => void;
 
   // Item / Category Analysis Modal & Tab State
@@ -142,6 +143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [counterInitialStaff, setCounterInitialStaff] = useState<string | undefined>(undefined);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
+  const [closingTargetStaff, setClosingTargetStaff] = useState<string | undefined>(undefined);
 
   // Item History Modal & Analysis State
   const [isItemHistoryModalOpen, setIsItemHistoryModalOpen] = useState(false);
@@ -584,11 +586,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCounterInitialStaff(undefined);
   };
 
-  const openClosingModal = () => setIsClosingModalOpen(true);
-  const closeClosingModal = () => setIsClosingModalOpen(false);
+  const openClosingModal = (targetStaff?: string) => {
+    setClosingTargetStaff(targetStaff);
+    setIsClosingModalOpen(true);
+  };
+  const closeClosingModal = () => {
+    setIsClosingModalOpen(false);
+    setClosingTargetStaff(undefined);
+  };
 
-  const todayStr = getTodayDateString();
-  const todayTransactions = transactions.filter(t => t.date === (currentScreen === 'employee' ? todayStr : selectedDate));
+  const handleSetSelectedDate = useCallback((newDate: string) => {
+    if (currentScreen === 'employee') {
+      const d3 = new Date();
+      d3.setDate(d3.getDate() - 3);
+      const minD = d3.toISOString().split('T')[0];
+      const today = getTodayDateString();
+      if (newDate < minD) {
+        setSelectedDate(minD);
+        showToast('Employees can only view records up to 3 days in the past', 'info');
+        return;
+      }
+      if (newDate > today) {
+        setSelectedDate(today);
+        return;
+      }
+    }
+    setSelectedDate(newDate);
+  }, [currentScreen, showToast]);
+
+  const todayTransactions = transactions.filter(t => t.date === selectedDate);
 
   return (
     <AppContext.Provider
@@ -615,7 +641,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminTab,
         setAdminTab,
         selectedDate,
-        setSelectedDate,
+        setSelectedDate: handleSetSelectedDate,
         dayBalances,
         transactions,
         todayTransactions,
@@ -640,6 +666,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openCounterModal,
         closeCounterModal,
         isClosingModalOpen,
+        closingTargetStaff,
         openClosingModal,
         closeClosingModal,
         isItemHistoryModalOpen,

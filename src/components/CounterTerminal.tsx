@@ -33,7 +33,10 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     addCategory,
     addUpiAccount,
     selectedMember,
+    currentScreen,
   } = useApp();
+
+  const isEmployeeUser = currentScreen === 'employee' || (selectedMember && selectedMember !== 'Admin / Owner');
 
   // All available counter staff members (counters strictly for cashiers/counters)
   const defaultStaffList = ['KRISHNA', 'NAVIN', 'SUNIL', 'ANAY', 'SONAM', 'OTHER'];
@@ -46,17 +49,18 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   
   const allStaffOptions = Array.from(
     new Set([...defaultStaffList, ...configStaff, ...counterStaff])
-  ).filter(s => s && s.trim() !== '');
+  );
 
   // Check if this modal is for Admin entry (e.g. opened from Summary / Admin Transaction Log or editing an Admin transaction)
   const isAdminEntry =
-    (editingTransaction && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((editingTransaction.staffName || '').trim().toUpperCase())) ||
+    !isEmployeeUser &&
+    ((editingTransaction && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((editingTransaction.staffName || '').trim().toUpperCase())) ||
     (initialStaff && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes(initialStaff.trim().toUpperCase())) ||
-    initialStaff === 'ADMIN';
+    initialStaff === 'ADMIN');
 
-  const defaultStaff = isAdminEntry
-    ? 'ADMIN'
-    : (initialStaff || (selectedMember && selectedMember !== 'Admin / Owner' ? selectedMember : 'KRISHNA'));
+  const defaultStaff = isEmployeeUser
+    ? (selectedMember || 'KRISHNA')
+    : (isAdminEntry ? 'ADMIN' : (initialStaff || 'KRISHNA'));
 
   // Modal type is locked to Receive (income) or Expense (expense) without internal switching
   const entryType: TransactionType = editingTransaction ? editingTransaction.type : initialType;
@@ -439,8 +443,39 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} style={{ padding: '0.9rem 1rem 1rem' }}>
-          {/* 2. USRE / Staff Member Selection Row (HIDDEN for Admin entries) */}
-          {isAdminEntry ? (
+          {/* 2. USRE / Staff Member Selection Row */}
+          {isEmployeeUser ? (
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '0.4rem 0.65rem',
+                marginBottom: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#334155' }}>USER :</span>
+                <span
+                  style={{
+                    background: themeColor,
+                    color: '#000000',
+                    fontWeight: 900,
+                    fontSize: '0.775rem',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '4px',
+                    border: '1.5px solid #000000',
+                  }}
+                >
+                  {selectedMember.toUpperCase()}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: 600 }}>Active Counter</span>
+            </div>
+          ) : isAdminEntry ? (
             <div
               style={{
                 background: isReceive ? '#ecfdf5' : '#fef2f2',
