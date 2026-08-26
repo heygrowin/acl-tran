@@ -224,16 +224,15 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     return true;
   });
 
-  // Helper to determine right side items for a counter
+  // Helper to determine right side items for a counter (excluding CASH IN HAND)
   const getCounterRightItems = (cTxs: Transaction[]) => {
-    const expenseTxs = cTxs.filter(t => t.type === 'expense');
-    const incomeTxs = cTxs.filter(t => t.type === 'income');
+    const expenseTxs = cTxs.filter(t => t.type === 'expense' && (t.category || '').trim().toUpperCase() !== 'CASH IN HAND');
+    const incomeTxs = cTxs.filter(t => t.type === 'income' && (t.category || '').trim().toUpperCase() !== 'CASH IN HAND');
 
-    // Check if there are explicit breakdown income logs (e.g. BANK RTGS, UPI accounts, CASH IN HAND)
+    // Check if there are explicit breakdown income logs (e.g. BANK RTGS, UPI accounts)
     const explicitBreakdownIncomes = incomeTxs.filter(t => {
       const cUpper = (t.category || '').trim().toUpperCase();
-      return cUpper === 'CASH IN HAND' ||
-             cUpper === 'BANK (RTGS)' ||
+      return cUpper === 'BANK (RTGS)' ||
              (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS'));
     });
 
@@ -263,14 +262,13 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       });
     });
 
-    // 2. Add explicit breakdown incomes (Green / Transferred / Explicit Cash in Hand)
+    // 2. Add explicit breakdown incomes (Green / Transferred)
     if (explicitBreakdownIncomes.length > 0) {
       explicitBreakdownIncomes.forEach(t => {
         const cUpper = (t.category || '').trim().toUpperCase();
         let method = (t.paymentMethod || 'cash').toLowerCase();
         if (cUpper === 'BANK (RTGS)' || cUpper.includes('RTGS')) method = 'rtgs';
         else if (cUpper.startsWith('UPI')) method = 'upi';
-        else if (cUpper === 'CASH IN HAND') method = 'cash';
 
         rightItems.push({
           id: t.id,
@@ -383,6 +381,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   // Calculate Overall Grand Totals across all counters
   let grandTotalReceive = 0;
   let grandTotalRight = 0;
+  let grandTotalCashInHand = 0;
 
   allCounterNames.forEach(counterName => {
     const cTxs = scopedTransactions.filter(
@@ -392,12 +391,24 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     const subReceive = rTxs.reduce((sum, t) => sum + t.amount, 0);
     const rItems = getCounterRightItems(cTxs);
     const subRight = rItems.reduce((sum, item) => sum + item.amount, 0);
+    const cCashInHand = cTxs.find(t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND')?.amount || 0;
 
     grandTotalReceive += subReceive;
     grandTotalRight += subRight;
+    grandTotalCashInHand += cCashInHand;
   });
 
-  const grandDifference = grandTotalRight - grandTotalReceive;
+  // Include any other Cash In Hand logged in scoped transactions (e.g. general / Admin)
+  scopedTransactions.forEach(t => {
+    if ((t.category || '').trim().toUpperCase() === 'CASH IN HAND') {
+      const sName = (t.staffName || 'OTHER').trim().toUpperCase();
+      if (!allCounterNames.includes(sName)) {
+        grandTotalCashInHand += t.amount;
+      }
+    }
+  });
+
+  const grandDifference = (grandTotalRight + grandTotalCashInHand) - grandTotalReceive;
 
   return (
     <div className="demo-pack-container animate-fade-in">
@@ -614,6 +625,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
               const receiveTxs = counterTxs.filter(t => !isRightSideEntry(t));
               const rightItems = getCounterRightItems(counterTxs);
 
+              const counterCashInHandTx = counterTxs.find(
+                t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+              );
+              const counterCashInHand = counterCashInHandTx ? counterCashInHandTx.amount : 0;
+
               // Individual Receive Items for Left Column
               const receiveItems = receiveTxs.map(tx => {
                 const cat = (tx.category || 'LAB WORK').toUpperCase().trim();
@@ -644,7 +660,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
               const subtotalReceive = receiveTxs.reduce((sum, t) => sum + t.amount, 0);
               const subtotalRight = rightItems.reduce((sum, item) => sum + item.amount, 0);
-              const counterDiff = subtotalRight - subtotalReceive;
+              const counterDiff = (subtotalRight + counterCashInHand) - subtotalReceive;
 
               // Do not render empty custom counter if none exist unless it's KRISHNA, NAVIN, or OTHER
               const isDefaultCounter = ['KRISHNA', 'NAVIN', 'OTHER'].includes(counterName);
@@ -737,7 +753,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                   onClick={() => {
                                     if (item.originalTx) {
                                       openItemHistoryModal(item.originalTx.category || item.title);
-                                    } else if (item.title && item.title !== 'CASH IN HAND') {
+                                    } else if (item.title) {
                                       openItemHistoryModal(item.title);
                                     }
                                   }}
@@ -778,27 +794,6 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                       <Trash2 size={10} />
                                     </button>
                                   </div>
-                                ) : item.title === 'CASH IN HAND' ? (
-                                  <div className="ledger-item-actions">
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '18px', height: '18px', color: '#2563eb' }}
-                                      onClick={() => handleEditCashInHand(counterName, item.amount)}
-                                      title="Edit Cash in Hand"
-                                    >
-                                      <Edit2 size={10} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '18px', height: '18px', color: '#dc2626' }}
-                                      onClick={() => handleDeleteCashInHandForCounter(counterName)}
-                                      title="Delete / Clear Cash in Hand"
-                                    >
-                                      <Trash2 size={10} />
-                                    </button>
-                                  </div>
                                 ) : null}
                               </div>
                             </div>
@@ -815,7 +810,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       <span style={{ fontSize: '0.95rem' }}>{subtotalReceive.toLocaleString()}</span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <div className="cash-diff-badge-wrap">
                         <div className="cash-diff-label">{counterDiff !== 0 ? 'CASH DIFF.' : 'CASH'}</div>
                         <div className={`cash-diff-val ${counterDiff < 0 ? 'negative' : counterDiff > 0 ? 'positive' : ''}`}>
@@ -848,6 +843,46 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         <Banknote size={11} />
                         <span>Cash in Hand</span>
                       </button>
+
+                      {/* Cash in Hand Amount shown right to button */}
+                      {counterCashInHand > 0 && (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            background: '#ffffff',
+                            color: '#15803d',
+                            border: '1.5px solid #86efac',
+                            borderRadius: '4px',
+                            padding: '0.15rem 0.45rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 900,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => handleEditCashInHand(counterName, counterCashInHand, counterCashInHandTx)}
+                            title="Click to edit Cash in Hand amount"
+                          >
+                            {counterCashInHand.toLocaleString()}
+                          </span>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            style={{ width: '14px', height: '14px', color: '#dc2626', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCashInHandForCounter(counterName);
+                            }}
+                            title="Delete / Clear Cash in Hand"
+                          >
+                            <Trash2 size={9} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="subtotal-pink-right">
@@ -866,7 +901,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
               <span style={{ fontSize: '1.35rem' }}>{grandTotalReceive.toLocaleString()}</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center', flexWrap: 'wrap' }}>
               <div className="grand-diff-badge-wrap">
                 <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
                   {grandDifference === 0 ? '0' : grandDifference}
@@ -898,6 +933,34 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                 <Banknote size={12} />
                 <span>Cash in Hand</span>
               </button>
+
+              {/* Grand Total Cash in Hand Amount shown right to button */}
+              {grandTotalCashInHand > 0 && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    background: '#ffffff',
+                    color: '#15803d',
+                    border: '2px solid #16a34a',
+                    borderRadius: '4px',
+                    padding: '0.2rem 0.55rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 900,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => openClosingModal()}
+                    title="Click to edit Cash in Hand"
+                  >
+                    {grandTotalCashInHand.toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="grand-total-right">
@@ -1256,112 +1319,30 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   </button>
                 </div>
 
-                {/* 4-Stat Cards Grid (Clean, Without Formula Clutter) */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '0.75rem',
-                  }}
-                >
-                  {/* 1. CASH IN HAND */}
+                {/* CASH IN HAND Stat Card (Drawer / Safe) */}
+                <div style={{ maxWidth: '380px', margin: '0 auto' }}>
                   <div
                     style={{
                       background: '#f0fdf4',
                       border: '1.5px solid #86efac',
                       borderRadius: '8px',
-                      padding: '0.65rem 0.8rem',
+                      padding: '0.75rem 1rem',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '0.25rem',
+                      gap: '0.3rem',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Banknote size={14} /> CASH IN HAND
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Banknote size={15} /> CASH IN HAND
                       </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '0.675rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '0.12rem 0.4rem', borderRadius: '4px' }}>
                         Drawer / Safe
                       </span>
                     </div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534' }}>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534' }}>
                       {formatCurrency(treasury.actualCash, config.currency)}
-                    </div>
-                  </div>
-
-                  {/* 2. RTGS (No "Bank") */}
-                  <div
-                    style={{
-                      background: '#eff6ff',
-                      border: '1.5px solid #93c5fd',
-                      borderRadius: '8px',
-                      padding: '0.65rem 0.8rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Building size={14} /> RTGS
-                      </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-                        Bank Balance
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualRtgs < 0 ? '#dc2626' : '#1e40af' }}>
-                      {formatCurrency(treasury.actualRtgs, config.currency)}
-                    </div>
-                  </div>
-
-                  {/* 3. UPI */}
-                  <div
-                    style={{
-                      background: '#faf5ff',
-                      border: '1.5px solid #d8b4fe',
-                      borderRadius: '8px',
-                      padding: '0.65rem 0.8rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#6b21a8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <QrCode size={14} /> UPI
-                      </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#7e22ce', background: '#f3e8ff', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-                        Online / QR
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 900, color: treasury.actualUpi < 0 ? '#dc2626' : '#6b21a8' }}>
-                      {formatCurrency(treasury.actualUpi, config.currency)}
-                    </div>
-                  </div>
-
-                  {/* 4. TOTAL ACTUAL MONEY */}
-                  <div
-                    style={{
-                      background: '#fffbeb',
-                      border: '2px solid #f59e0b',
-                      borderRadius: '8px',
-                      padding: '0.65rem 0.8rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem',
-                      boxShadow: '0 2px 6px rgba(245, 158, 11, 0.15)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 900, color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        💎 TOTAL ACTUAL MONEY
-                      </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#b45309', background: '#fef3c7', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-                        Grand Total Liquid
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '1.35rem', fontWeight: 900, color: treasury.actualTotal < 0 ? '#dc2626' : '#000000' }}>
-                      {formatCurrency(treasury.actualTotal, config.currency)}
                     </div>
                   </div>
                 </div>

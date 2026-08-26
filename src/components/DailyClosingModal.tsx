@@ -3,26 +3,24 @@ import { useApp } from '../context/AppContext';
 import type { DenominationCounts } from '../types';
 import {
   X,
-  CheckCircle2,
-  AlertTriangle,
   Printer,
   Share2,
-  Sparkles,
   Banknote,
-  RotateCcw,
   Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatCurrency, isRightSideEntry } from '../services/storageService';
 
 const DENOMINATIONS = [
-  { value: 500, label: '₹500 Notes', bg: '#f0fdf4', border: '#86efac', color: '#166534' },
-  { value: 200, label: '₹200 Notes', bg: '#fffbeb', border: '#fde68a', color: '#b45309' },
-  { value: 100, label: '₹100 Notes', bg: '#eff6ff', border: '#bfdbfe', color: '#1e40af' },
-  { value: 50, label: '₹50 Notes', bg: '#fdf2f8', border: '#fbcfe8', color: '#9d174d' },
-  { value: 20, label: '₹20 Notes', bg: '#fff7ed', border: '#fed7aa', color: '#c2410c' },
-  { value: 10, label: '₹10 Notes', bg: '#f8fafc', border: '#cbd5e1', color: '#334155' },
-  { value: 1, label: 'Coins / Small Change', bg: '#f1f5f9', border: '#cbd5e1', color: '#475569' },
+  { value: 500, label: '₹500 Note', isNote: true },
+  { value: 200, label: '₹200 Note', isNote: true },
+  { value: 100, label: '₹100 Note', isNote: true },
+  { value: 50, label: '₹50 Note', isNote: true },
+  { value: 20, label: '₹20 Note', isNote: true },
+  { value: 10, label: '₹10 Note / Coin', isNote: true },
+  { value: 5, label: '₹5 Coin / Note', isNote: false },
+  { value: 2, label: '₹2 Coin', isNote: false },
+  { value: 1, label: '₹1 Coin', isNote: false },
 ];
 
 export const DailyClosingModal: React.FC = () => {
@@ -59,11 +57,11 @@ export const DailyClosingModal: React.FC = () => {
     '50': 0,
     '20': 0,
     '10': 0,
+    '5': 0,
+    '2': 0,
     '1': 0,
   });
 
-  const [manualCashInput, setManualCashInput] = useState<string>('');
-  const [useDenominationCalculator, setUseDenominationCalculator] = useState<boolean>(true);
   const [closingNotes, setClosingNotes] = useState<string>('');
   const [closedBy, setClosedBy] = useState<string>('Counter Staff');
   const [showSlip, setShowSlip] = useState<boolean>(false);
@@ -103,36 +101,28 @@ export const DailyClosingModal: React.FC = () => {
     t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
   );
 
+  // Helper to calculate breakdown
+  const calculateBreakdown = (amount: number): DenominationCounts => {
+    let remaining = Math.max(0, amount);
+    const newDenoms: DenominationCounts = {};
+    [500, 200, 100, 50, 20, 10, 5, 2, 1].forEach(d => {
+      const count = Math.floor(remaining / d);
+      newDenoms[d.toString()] = count;
+      remaining -= count * d;
+    });
+    return newDenoms;
+  };
+
   // Prepopulate when counter changes or modal opens
   useEffect(() => {
     if (isClosingModalOpen) {
       if (existingCashInHandTx && existingCashInHandTx.amount > 0) {
-        setManualCashInput(existingCashInHandTx.amount.toString());
-        // Try parsing denomination breakdown if stored in note, or auto-fill
-        let remaining = existingCashInHandTx.amount;
-        const newDenoms: DenominationCounts = {};
-        [500, 200, 100, 50, 20, 10].forEach(d => {
-          const count = Math.floor(remaining / d);
-          newDenoms[d.toString()] = count;
-          remaining -= count * d;
-        });
-        newDenoms['1'] = remaining;
-        setDenoms(newDenoms);
+        setDenoms(calculateBreakdown(existingCashInHandTx.amount));
       } else {
-        // Auto populate with expected cash initially
-        let remaining = expectedCounterCash;
-        const newDenoms: DenominationCounts = {};
-        [500, 200, 100, 50, 20, 10].forEach(d => {
-          const count = Math.floor(remaining / d);
-          newDenoms[d.toString()] = count;
-          remaining -= count * d;
-        });
-        newDenoms['1'] = remaining;
-        setDenoms(newDenoms);
-        setManualCashInput(expectedCounterCash.toString());
+        setDenoms(calculateBreakdown(expectedCounterCash));
       }
     }
-  }, [isClosingModalOpen, selectedCounter, expectedCounterCash, existingCashInHandTx?.id, existingCashInHandTx?.amount]);
+  }, [isClosingModalOpen, selectedCounter, expectedCounterCash, existingCashInHandTx]);
 
   if (!isClosingModalOpen) return null;
 
@@ -142,10 +132,7 @@ export const DailyClosingModal: React.FC = () => {
     return sum + val * (count || 0);
   }, 0);
 
-  const finalActualCash = useDenominationCalculator
-    ? denomTotal
-    : (parseFloat(manualCashInput) || 0);
-
+  const finalActualCash = denomTotal;
   const cashDiff = finalActualCash - expectedCounterCash;
 
   let status: 'balanced' | 'shortage' | 'excess' = 'balanced';
@@ -153,33 +140,15 @@ export const DailyClosingModal: React.FC = () => {
   else if (cashDiff > 0) status = 'excess';
 
   const handleDenomChange = (valStr: string, countStr: string) => {
-    const count = parseInt(countStr, 10) || 0;
+    const count = parseInt(countStr, 10);
     setDenoms(prev => ({
       ...prev,
-      [valStr]: Math.max(0, count),
-    }));
-  };
-
-  const handleQuickAdd = (valStr: string, amountToAdd: number) => {
-    setDenoms(prev => ({
-      ...prev,
-      [valStr]: Math.max(0, (prev[valStr] || 0) + amountToAdd),
+      [valStr]: isNaN(count) ? 0 : Math.max(0, count),
     }));
   };
 
   const handleAutoFillExpected = () => {
-    let remaining = expectedCounterCash;
-    const newDenoms: DenominationCounts = {};
-
-    [500, 200, 100, 50, 20, 10].forEach(d => {
-      const count = Math.floor(remaining / d);
-      newDenoms[d.toString()] = count;
-      remaining -= count * d;
-    });
-    newDenoms['1'] = remaining;
-
-    setDenoms(newDenoms);
-    setManualCashInput(expectedCounterCash.toString());
+    setDenoms(calculateBreakdown(expectedCounterCash));
     showToast(`Auto-filled with ${formatCurrency(expectedCounterCash, config.currency)} expected cash`);
   };
 
@@ -191,24 +160,23 @@ export const DailyClosingModal: React.FC = () => {
       '50': 0,
       '20': 0,
       '10': 0,
+      '5': 0,
+      '2': 0,
       '1': 0,
     });
-    setManualCashInput('0');
   };
 
   const handleFinalizeClosing = () => {
-    const denomSummary = useDenominationCalculator
-      ? Object.entries(denoms)
-          .filter(([_, count]) => (count || 0) > 0)
-          .map(([val, count]) => `${val}x${count}`)
-          .join(', ')
-      : '';
+    const denomSummary = Object.entries(denoms)
+      .filter(([_, count]) => (count || 0) > 0)
+      .map(([val, count]) => `${val}x${count}`)
+      .join(', ');
 
     const noteStr = denomSummary
       ? `Cash in Hand (${denomSummary})${closingNotes ? ' • ' + closingNotes : ''}`
       : (closingNotes || 'Cash in Hand (Physical drawer count)');
 
-    // 1. Record/Update CASH IN HAND transaction as Expense on the right side
+    // 1. Record/Update CASH IN HAND transaction
     if (existingCashInHandTx) {
       updateTransaction({
         ...existingCashInHandTx,
@@ -299,7 +267,7 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
 
   return (
     <div className="modal-overlay" onClick={closeClosingModal}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
         {/* Header */}
         <div
           style={{
@@ -316,7 +284,7 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
               <Banknote size={18} />
             </div>
             <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a', lineHeight: 1.15 }}>
+              <h2 style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a', margin: 0, lineHeight: 1.15 }}>
                 Cash in Hand
               </h2>
             </div>
@@ -373,249 +341,235 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 {/* Expected Drawer Cash Display */}
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, display: 'block' }}>Expected in Drawer:</span>
-                  <span className="font-mono" style={{ fontSize: '1rem', fontWeight: 900, color: '#b45309' }}>
+                  <span className="font-mono" style={{ fontSize: '0.95rem', fontWeight: 900, color: '#b45309' }}>
                     {formatCurrency(expectedCounterCash, config.currency)}
                   </span>
                 </div>
               </div>
 
-              {/* Denomination Note Calculator */}
-              <div style={{ marginBottom: '0.65rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Banknote size={14} style={{ color: '#16a34a' }} />
-                    <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                      Note Count:
-                    </label>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      style={{ fontSize: '0.7rem', color: '#2563eb', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.15rem' }}
-                      onClick={handleAutoFillExpected}
-                      title="Auto-fill note breakdown with expected amount"
-                    >
-                      <Sparkles size={11} /> Auto-fill
-                    </button>
-                    <span style={{ color: '#cbd5e1' }}>•</span>
-                    <button
-                      type="button"
-                      style={{ fontSize: '0.7rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}
-                      onClick={handleClearAll}
-                      title="Reset counts to zero"
-                    >
-                      <RotateCcw size={11} style={{ display: 'inline', marginRight: '0.15rem' }} /> Clear
-                    </button>
-                    <span style={{ color: '#cbd5e1' }}>•</span>
-                    <button
-                      type="button"
-                      style={{ fontSize: '0.7rem', color: '#475569', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
-                      onClick={() => setUseDenominationCalculator(!useDenominationCalculator)}
-                    >
-                      {useDenominationCalculator ? 'Direct Total' : 'Note Calculator'}
-                    </button>
-                  </div>
-                </div>
-
-                {useDenominationCalculator ? (
-                  <div>
-                    {/* Denomination Grid */}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                        gap: '0.35rem',
-                        marginBottom: '0.45rem',
-                      }}
-                    >
-                      {DENOMINATIONS.map(d => {
-                        const count = denoms[d.value.toString()] || 0;
-                        const subTotal = d.value * count;
-                        return (
-                          <div
-                            key={d.value}
-                            style={{
-                              background: d.bg,
-                              border: `1.5px solid ${count > 0 ? d.border : '#e2e8f0'}`,
-                              borderRadius: '6px',
-                              padding: '0.35rem 0.45rem',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.2rem',
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.675rem', fontWeight: 800, color: d.color }}>
-                              <span>{d.label}</span>
-                              <span style={{ opacity: 0.6 }}>×</span>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                              <input
-                                type="number"
-                                min="0"
-                                className="form-input font-mono"
+              {/* Clean 3-Column Denomination Table */}
+              <div
+                style={{
+                  borderRadius: '8px',
+                  border: '1.5px solid #e2e8f0',
+                  background: '#ffffff',
+                  marginBottom: '0.65rem',
+                  overflow: 'hidden',
+                }}
+              >
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #cbd5e1', fontSize: '0.725rem', fontWeight: 800, color: '#475569' }}>
+                      <th style={{ padding: '0.45rem 0.75rem' }}>Note / Coin</th>
+                      <th style={{ padding: '0.45rem 0.5rem', textAlign: 'center', width: '120px' }}>Count (Pcs)</th>
+                      <th style={{ padding: '0.45rem 0.75rem', textAlign: 'right' }}>Total Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DENOMINATIONS.map((d, index) => {
+                      const count = denoms[d.value.toString()] || 0;
+                      const total = d.value * count;
+                      return (
+                        <tr
+                          key={d.value}
+                          style={{
+                            borderBottom: index < DENOMINATIONS.length - 1 ? '1px solid #f1f5f9' : 'none',
+                            background: count > 0 ? '#f0fdf4' : 'transparent',
+                            transition: 'background 0.15s ease',
+                          }}
+                        >
+                          {/* Column 1: Note / Coin */}
+                          <td style={{ padding: '0.35rem 0.75rem', verticalAlign: 'middle' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span
                                 style={{
                                   fontSize: '0.85rem',
                                   fontWeight: 800,
-                                  padding: '0.2rem 0.35rem',
-                                  textAlign: 'center',
-                                  background: '#ffffff',
+                                  color: d.isNote ? '#166534' : '#0f172a',
+                                  fontFamily: 'var(--font-mono, monospace)',
                                 }}
-                                placeholder="0"
-                                value={count || ''}
-                                onChange={e => handleDenomChange(d.value.toString(), e.target.value)}
-                              />
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', gap: '0.15rem' }}>
-                                <button
-                                  type="button"
-                                  style={{ fontSize: '0.6rem', padding: '0.05rem 0.25rem', background: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 700 }}
-                                  onClick={() => handleQuickAdd(d.value.toString(), 1)}
-                                >
-                                  +1
-                                </button>
-                                <button
-                                  type="button"
-                                  style={{ fontSize: '0.6rem', padding: '0.05rem 0.25rem', background: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 700 }}
-                                  onClick={() => handleQuickAdd(d.value.toString(), 5)}
-                                >
-                                  +5
-                                </button>
-                              </div>
-                              <span className="font-mono" style={{ fontSize: '0.675rem', fontWeight: 800, color: subTotal > 0 ? d.color : '#94a3b8' }}>
-                                {subTotal > 0 ? formatCurrency(subTotal, config.currency) : '—'}
+                              >
+                                ₹{d.value}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  color: d.isNote ? '#15803d' : '#64748b',
+                                  background: d.isNote ? '#dcfce7' : '#f1f5f9',
+                                  padding: '0.1rem 0.35rem',
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                {d.isNote ? 'Note' : 'Coin'}
                               </span>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          </td>
 
-                    {/* Total Drawer Cash Bar */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.45rem 0.65rem',
-                        background: '#fffbeb',
-                        borderRadius: '6px',
-                        border: '1.5px solid #fde68a',
-                        fontWeight: 800,
-                        fontSize: '0.8rem',
-                      }}
-                    >
-                      <span style={{ color: '#92400e' }}>Total Counted Cash:</span>
-                      <span className="font-mono" style={{ fontSize: '1.15rem', color: '#b45309', fontWeight: 900 }}>
-                        {formatCurrency(denomTotal, config.currency)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <input
-                      type="number"
-                      className="form-input font-mono"
-                      style={{ fontSize: '1.2rem', fontWeight: 800, padding: '0.45rem 0.65rem' }}
-                      placeholder="Enter counted cash..."
-                      value={manualCashInput}
-                      onChange={e => setManualCashInput(e.target.value)}
-                    />
-                  </div>
-                )}
+                          {/* Column 2: Count / Number Input */}
+                          <td style={{ padding: '0.35rem 0.5rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-input font-mono"
+                              style={{
+                                width: '80px',
+                                fontSize: '0.875rem',
+                                fontWeight: 800,
+                                padding: '0.2rem 0.35rem',
+                                textAlign: 'center',
+                                background: '#ffffff',
+                                border: count > 0 ? '1.5px solid #22c55e' : '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                margin: '0 auto',
+                                display: 'block',
+                              }}
+                              placeholder="0"
+                              value={count === 0 ? '' : count}
+                              onChange={e => handleDenomChange(d.value.toString(), e.target.value)}
+                              onFocus={e => e.target.select()}
+                            />
+                          </td>
+
+                          {/* Column 3: Total Amount */}
+                          <td style={{ padding: '0.35rem 0.75rem', textAlign: 'right', verticalAlign: 'middle' }}>
+                            <span
+                              style={{
+                                fontSize: '0.875rem',
+                                fontWeight: 800,
+                                color: total > 0 ? '#166534' : '#94a3b8',
+                                fontFamily: 'var(--font-mono, monospace)',
+                              }}
+                            >
+                              {total > 0 ? `₹${total.toLocaleString()}` : '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Real-time Match Status & Difference Banner */}
+              {/* Total Counted Cash & Match Difference Card */}
               <div
                 style={{
-                  padding: '0.5rem 0.75rem',
-                  borderRadius: '6px',
-                  background: status === 'balanced' ? '#f0fdf4' : status === 'shortage' ? '#fef2f2' : '#fff7ed',
-                  border: `1.5px solid ${status === 'balanced' ? '#86efac' : status === 'shortage' ? '#fca5a5' : '#fed7aa'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  padding: '0.55rem 0.85rem',
+                  background: '#fffbeb',
+                  borderRadius: '6px',
+                  border: '1.5px solid #fde68a',
                   marginBottom: '0.65rem',
-                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                  gap: '0.4rem',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  {status === 'balanced' ? (
-                    <CheckCircle2 size={18} style={{ color: '#16a34a', flexShrink: 0 }} />
-                  ) : (
-                    <AlertTriangle size={18} style={{ color: status === 'shortage' ? '#dc2626' : '#ea580c', flexShrink: 0 }} />
-                  )}
-                  <div>
-                    <div style={{ fontSize: '0.825rem', fontWeight: 800, color: status === 'balanced' ? '#166534' : status === 'shortage' ? '#991b1b' : '#9a3412' }}>
-                      {status === 'balanced'
-                        ? '✓ Matched (0 Difference)'
-                        : status === 'shortage'
-                        ? `⚠️ Cash Shortage: ${formatCurrency(Math.abs(cashDiff), config.currency)}`
-                        : `🟢 Cash Excess: +${formatCurrency(cashDiff, config.currency)}`}
-                    </div>
-                  </div>
+                <div>
+                  <span style={{ fontSize: '0.675rem', color: '#92400e', fontWeight: 800, textTransform: 'uppercase', display: 'block' }}>
+                    Total Counted Cash:
+                  </span>
+                  <span className="font-mono" style={{ fontSize: '1.2rem', color: '#b45309', fontWeight: 900 }}>
+                    {formatCurrency(finalActualCash, config.currency)}
+                  </span>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 700, display: 'block' }}>Difference:</span>
-                  <span className="font-mono" style={{ fontSize: '0.95rem', fontWeight: 900, color: status === 'balanced' ? '#16a34a' : '#dc2626' }}>
-                    {cashDiff === 0 ? '₹0' : formatCurrency(cashDiff, config.currency)}
+                  <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: 700, display: 'block' }}>
+                    Status / Difference:
+                  </span>
+                  <span
+                    className="font-mono"
+                    style={{
+                      fontSize: '0.9rem',
+                      fontWeight: 900,
+                      color: status === 'balanced' ? '#16a34a' : status === 'shortage' ? '#dc2626' : '#ea580c',
+                    }}
+                  >
+                    {status === 'balanced'
+                      ? '✓ Matched (₹0 Diff)'
+                      : status === 'shortage'
+                      ? `⚠️ Short: -₹${Math.abs(cashDiff).toLocaleString()}`
+                      : `🟢 Excess: +₹${cashDiff.toLocaleString()}`}
                   </span>
                 </div>
               </div>
 
-              {/* Notes & Closed By */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.45rem', marginBottom: '0.65rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.725rem', marginBottom: '0.15rem' }}>Remarks (Optional):</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ fontSize: '0.775rem', padding: '0.3rem 0.5rem' }}
-                    placeholder="e.g. Handed over to Owner"
-                    value={closingNotes}
-                    onChange={e => setClosingNotes(e.target.value)}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '0.725rem', marginBottom: '0.15rem' }}>Recorded By:</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ fontSize: '0.775rem', padding: '0.3rem 0.5rem' }}
-                    value={closedBy}
-                    onChange={e => setClosedBy(e.target.value)}
-                  />
-                </div>
+              {/* Optional Remarks */}
+              <div style={{ marginBottom: '0.65rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ fontSize: '0.775rem', padding: '0.3rem 0.55rem', borderRadius: '5px' }}
+                  placeholder="Optional remarks (e.g. Handed over to Owner)..."
+                  value={closingNotes}
+                  onChange={e => setClosingNotes(e.target.value)}
+                />
               </div>
 
-              {/* Main Finalize Action Button */}
-              <button
-                type="button"
-                className="btn-fast-income"
-                style={{
-                  width: '100%',
-                  padding: '0.65rem',
-                  background: '#000000',
-                  color: '#ffffff',
-                  fontSize: '0.875rem',
-                  fontWeight: 900,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  border: 'none',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.18)',
-                }}
-                onClick={handleFinalizeClosing}
-              >
-                <Banknote size={15} />
-                <span>Save Cash in Hand ({formatCurrency(finalActualCash, config.currency)})</span>
-              </button>
+              {/* Action Buttons: Clear, Auto-fill, Save */}
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '0.55rem 0.75rem',
+                    background: '#f1f5f9',
+                    border: '1px solid #cbd5e1',
+                    color: '#475569',
+                    borderRadius: '5px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                  onClick={handleClearAll}
+                  title="Reset all counts to 0"
+                >
+                  Clear All
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    padding: '0.55rem 0.75rem',
+                    background: '#eff6ff',
+                    border: '1.5px solid #bfdbfe',
+                    color: '#1d4ed8',
+                    borderRadius: '5px',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                  onClick={handleAutoFillExpected}
+                  title="Auto-fill with expected cash"
+                >
+                  Auto-Fill Expected
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '0.65rem 0.85rem',
+                    background: '#000000',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    border: 'none',
+                    boxShadow: '0 3px 8px rgba(0,0,0,0.2)',
+                  }}
+                  onClick={handleFinalizeClosing}
+                >
+                  <Banknote size={15} />
+                  <span>Save Cash in Hand ({formatCurrency(finalActualCash, config.currency)})</span>
+                </button>
+              </div>
             </>
           ) : (
             /* Closing Slip / Receipt View */
@@ -631,8 +585,8 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 }}
               >
                 <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a' }}>{config.businessName}</h3>
-                  <p style={{ fontSize: '0.7rem', color: '#64748b' }}>Daily Physical Cash Closing Slip</p>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.15rem 0' }}>{config.businessName}</h3>
+                  <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0 }}>Daily Physical Cash Closing Slip</p>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '0.15rem', fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>
                     <span>Date: {selectedDate}</span>
                     <span>•</span>
