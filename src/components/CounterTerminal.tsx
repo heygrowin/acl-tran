@@ -5,6 +5,8 @@ import {
   X,
   Check,
   Trash2,
+  ChevronDown,
+  Plus,
 } from 'lucide-react';
 import { getTodayDateString, getCurrentTimeString, formatCurrency } from '../services/storageService';
 
@@ -24,6 +26,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const {
     config,
     counters,
+    transactions,
     addTransaction,
     updateTransaction,
     deleteTransaction,
@@ -46,7 +49,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const counterStaff = (counters || []).map(c => c.name).filter(
     s => s !== 'Admin / Owner' && s !== 'ADMIN / OWNER' && s !== 'ADMIN' && s !== 'Owner' && s !== 'OWNER'
   );
-  
+
   const allStaffOptions = Array.from(
     new Set([...defaultStaffList, ...configStaff, ...counterStaff])
   );
@@ -55,8 +58,8 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const isAdminEntry =
     !isEmployeeUser &&
     ((editingTransaction && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((editingTransaction.staffName || '').trim().toUpperCase())) ||
-    (initialStaff && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes(initialStaff.trim().toUpperCase())) ||
-    initialStaff === 'ADMIN');
+      (initialStaff && ['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes(initialStaff.trim().toUpperCase())) ||
+      initialStaff === 'ADMIN');
 
   const defaultStaff = isEmployeeUser
     ? (selectedMember || 'KRISHNA')
@@ -73,8 +76,9 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [upiAccount, setUpiAccount] = useState<string>('');
 
-  // Dropdown / Autosuggest state for Head
+  // Dropdown / Autosuggest state for Head & Account
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
 
   // In-modal Animated Success Popup State
   const [successInfo, setSuccessInfo] = useState<{
@@ -86,9 +90,11 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   } | null>(null);
 
   const categoryContainerRef = useRef<HTMLDivElement>(null);
+  const accountContainerRef = useRef<HTMLDivElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
   const remarkInputRef = useRef<HTMLInputElement>(null);
   const headInputRef = useRef<HTMLInputElement>(null);
+  const accountInputRef = useRef<HTMLInputElement>(null);
 
   // Default Quick Chips from Mockups
   const counterReceiveQuickHeads = ['LAB WORK', 'GOODS', 'ID CARD', 'OTHER )', 'CASH IN HAND'];
@@ -104,22 +110,34 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   // Custom and existing categories
   const allCategories = isAdminEntry
     ? (isReceive
-        ? Array.from(new Set([...adminReceiveQuickHeads, ...(config.incomeCategories || [])]))
-        : Array.from(new Set([...adminExpenseQuickHeads, ...(config.expenseCategories || [])])))
+      ? Array.from(new Set([...adminReceiveQuickHeads, ...(config.incomeCategories || [])]))
+      : Array.from(new Set([...adminExpenseQuickHeads, ...(config.expenseCategories || [])])))
     : (isReceive
-        ? Array.from(new Set([...counterReceiveQuickHeads, ...(config.incomeCategories || [])]))
-        : Array.from(new Set([...counterExpenseQuickHeads, ...(config.expenseCategories || [])])));
+      ? Array.from(new Set([...counterReceiveQuickHeads, ...(config.incomeCategories || [])]))
+      : Array.from(new Set([...counterExpenseQuickHeads, ...(config.expenseCategories || [])])));
 
   const filteredCategories = allCategories.filter(c =>
     c.toLowerCase().includes(category.trim().toLowerCase())
   );
 
-  const existingUpiAccounts = (config.upiAccounts || []).filter(
-    (a: string) => !['Shop QR', 'PhonePe QR', 'Paytm QR', 'Bank QR', 'Bank UPI'].includes(a)
+  // Custom and existing Bank / UPI Accounts (dynamic from config and transaction history)
+  const transactionAccounts = (transactions || [])
+    .map(t => (t.paymentAccount || '').trim())
+    .filter(a => a && !['Shop QR', 'PhonePe QR', 'Paytm QR', 'Bank QR', 'Bank UPI', 'PhonePe', 'GPay', 'Paytm', 'RUPAY'].includes(a));
+
+  const configAccounts = (config.upiAccounts || []).filter(
+    (a: string) => !['Shop QR', 'PhonePe QR', 'Paytm QR', 'Bank QR', 'Bank UPI', 'PhonePe', 'GPay', 'Paytm', 'RUPAY'].includes(a)
   );
 
-  // Preset UPI accounts
-  const defaultUpiOptions = ['Shop QR', 'PhonePe', 'GPay', 'Paytm', 'RUPAY', ...existingUpiAccounts];
+  const existingAccounts = Array.from(new Set([...configAccounts, ...transactionAccounts]));
+
+  const filteredAccounts = existingAccounts.filter(acc =>
+    acc.toLowerCase().includes(upiAccount.trim().toLowerCase())
+  );
+
+  const isExactAccountMatch = existingAccounts.some(
+    acc => acc.toLowerCase() === upiAccount.trim().toLowerCase()
+  );
 
   // Sync state on open or when editing
   useEffect(() => {
@@ -139,6 +157,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setUpiAccount('');
     }
     setIsCategoryDropdownOpen(false);
+    setIsAccountDropdownOpen(false);
     setSuccessInfo(null);
   }, [isOpen, initialType, initialStaff, editingTransaction, config, selectedMember, isAdminEntry]);
 
@@ -157,6 +176,9 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     const handleOutsideClick = (e: MouseEvent) => {
       if (categoryContainerRef.current && !categoryContainerRef.current.contains(e.target as Node)) {
         setIsCategoryDropdownOpen(false);
+      }
+      if (accountContainerRef.current && !accountContainerRef.current.contains(e.target as Node)) {
+        setIsAccountDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -177,11 +199,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
   const handleHeadChipClick = (headName: string) => {
     setCategory(headName);
-    if (headName.toUpperCase().includes('CASH IN HAND')) {
+    const upper = headName.toUpperCase();
+    if (upper.includes('CASH IN HAND')) {
       setPaymentMethod('cash');
-    } else if (headName.toUpperCase().includes('RTGS')) {
+    } else if (upper.includes('RTGS') || upper.includes('BANK')) {
       setPaymentMethod('rtgs');
-    } else if (headName.toUpperCase().startsWith('UPI')) {
+    } else if (upper.startsWith('UPI')) {
       setPaymentMethod('upi');
     }
     setIsCategoryDropdownOpen(false);
@@ -193,8 +216,13 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
   const handlePaymentMethodSelect = (method: string) => {
     setPaymentMethod(method);
-    if (method === 'upi' && !upiAccount) {
-      setUpiAccount('Shop QR');
+    if (method === 'cash') {
+      setIsAccountDropdownOpen(false);
+    } else {
+      setTimeout(() => {
+        accountInputRef.current?.focus();
+        setIsAccountDropdownOpen(true);
+      }, 50);
     }
   };
 
@@ -219,9 +247,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     }
 
     let finalPaymentAccount: string | undefined = undefined;
-    if (paymentMethod === 'upi') {
-      finalPaymentAccount = upiAccount.trim() || 'UPI';
-      addUpiAccount(finalPaymentAccount);
+    if (paymentMethod === 'upi' || paymentMethod === 'rtgs') {
+      const cleanAcc = upiAccount.trim();
+      if (cleanAcc) {
+        finalPaymentAccount = cleanAcc;
+        addUpiAccount(cleanAcc);
+      }
     }
 
     const sanitizedStaff = isAdminEntry ? 'ADMIN' : (staffName.trim() || 'KRISHNA');
@@ -262,7 +293,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
         amount: finalAmount,
         staff: isAdminEntry ? 'Admin (Logged to Admin Log)' : sanitizedStaff,
         head: finalCategory,
-        method: paymentMethod.toUpperCase(),
+        method: finalPaymentAccount ? `${paymentMethod.toUpperCase()} (${finalPaymentAccount})` : paymentMethod.toUpperCase(),
       });
 
       // Auto-hide success popup after 2.6 seconds
@@ -274,6 +305,8 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setAmount('');
       setNote('');
       setCategory('');
+      setIsCategoryDropdownOpen(false);
+      setIsAccountDropdownOpen(false);
 
       // Auto re-focus amount input so user can type next entry immediately
       setTimeout(() => {
@@ -861,51 +894,208 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               })}
             </div>
 
-            {/* Horizontal Stadium Bar matching mockup (Expands when UPI is selected) */}
-            <div
-              style={{
-                background: themeColor,
-                borderRadius: '9999px',
-                minHeight: '26px',
-                padding: '0.2rem 0.65rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                marginBottom: '0.65rem',
-              }}
-            >
-              {paymentMethod === 'upi' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', width: '100%', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#000000' }}>UPI:</span>
-                  <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', padding: '0.1rem 0' }}>
-                    {defaultUpiOptions.slice(0, 4).map(uName => (
-                      <button
-                        key={uName}
-                        type="button"
+            {/* Account / UPI / Bank Selection Row (Visible for UPI & RTGS) */}
+            {paymentMethod !== 'cash' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div ref={accountContainerRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div
+                    style={{
+                      background: themeColor,
+                      color: '#000000',
+                      fontWeight: 900,
+                      fontSize: '0.78rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '9999px',
+                      width: '74px',
+                      textAlign: 'center',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Account:
+                  </div>
+
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <input
+                      ref={accountInputRef}
+                      type="text"
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 2rem 0.45rem 1rem',
+                        borderRadius: '9999px',
+                        border: '1.8px solid #000000',
+                        background: '#ffffff',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: '#000000',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                      placeholder={paymentMethod === 'rtgs' ? 'Bank A/c (e.g. ansh@iob, SBI 4012)' : 'Account / UPI (e.g. ansh@iob, @IOB)'}
+                      value={upiAccount}
+                      onChange={e => {
+                        setUpiAccount(e.target.value);
+                        setIsAccountDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsAccountDropdownOpen(true)}
+                    />
+
+                    <button
+                      type="button"
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#000000',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+                    >
+                      <ChevronDown size={15} strokeWidth={2.5} />
+                    </button>
+
+                    {/* Auto-suggest Dropdown */}
+                    {isAccountDropdownOpen && (
+                      <div
                         style={{
-                          background: upiAccount === uName ? '#000000' : '#ffffff',
-                          color: upiAccount === uName ? '#ffffff' : '#000000',
-                          border: 'none',
-                          borderRadius: '9999px',
-                          padding: '0.15rem 0.5rem',
-                          fontSize: '0.65rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          marginTop: '4px',
+                          background: '#ffffff',
+                          border: '1.8px solid #000000',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                          zIndex: 90,
+                          maxHeight: '160px',
+                          overflowY: 'auto',
                         }}
-                        onClick={() => setUpiAccount(uName)}
                       >
-                        {uName}
-                      </button>
-                    ))}
+                        {filteredAccounts.map(acc => (
+                          <div
+                            key={acc}
+                            style={{
+                              padding: '0.45rem 0.75rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f1f5f9',
+                              background: upiAccount.toLowerCase() === acc.toLowerCase() ? '#e2e8f0' : '#ffffff',
+                              color: '#000000',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                            }}
+                            onClick={() => {
+                              setUpiAccount(acc);
+                              setIsAccountDropdownOpen(false);
+                            }}
+                          >
+                            <span>{acc}</span>
+                            {upiAccount.toLowerCase() === acc.toLowerCase() && (
+                              <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 900 }}>✓ Selected</span>
+                            )}
+                          </div>
+                        ))}
+
+                        {upiAccount.trim() && !isExactAccountMatch && (
+                          <div
+                            style={{
+                              padding: '0.45rem 0.75rem',
+                              fontSize: '0.8rem',
+                              fontWeight: 800,
+                              color: '#1d4ed8',
+                              cursor: 'pointer',
+                              background: '#eff6ff',
+                              borderTop: '1px solid #bfdbfe',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                            }}
+                            onClick={() => {
+                              setIsAccountDropdownOpen(false);
+                            }}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                            <span>Add new "{upiAccount.trim()}"</span>
+                          </div>
+                        )}
+
+                        {filteredAccounts.length === 0 && !upiAccount.trim() && (
+                          <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                            Type account code or UPI ID (e.g. ansh@iob) to save it
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : (
+
+                {/* Quick Account Chips */}
+                {existingAccounts.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '0.25rem',
+                      flexWrap: 'wrap',
+                      paddingLeft: '79px',
+                      marginTop: '0.1rem',
+                    }}
+                  >
+                    {existingAccounts.map(accName => {
+                      const isSelected = upiAccount.trim().toLowerCase() === accName.trim().toLowerCase();
+                      return (
+                        <button
+                          key={accName}
+                          type="button"
+                          style={{
+                            background: isSelected ? '#000000' : '#e2e8f0',
+                            color: isSelected ? '#ffffff' : '#0f172a',
+                            border: isSelected ? '1.5px solid #000000' : '1px solid #cbd5e1',
+                            borderRadius: '9999px',
+                            padding: '0.15rem 0.55rem',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            transition: 'all 0.12s ease',
+                          }}
+                          onClick={() => {
+                            setUpiAccount(accName);
+                            setIsAccountDropdownOpen(false);
+                          }}
+                        >
+                          {accName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: themeColor,
+                  borderRadius: '9999px',
+                  minHeight: '26px',
+                  padding: '0.2rem 0.65rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                }}
+              >
                 <div style={{ fontSize: '0.68rem', fontWeight: 900, color: '#000000', textTransform: 'uppercase' }}>
-                  {paymentMethod} MODE ACTIVE
+                  CASH MODE ACTIVE
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* 6. Action Buttons: Delete (if editing) & Big Red SAVE Button */}
