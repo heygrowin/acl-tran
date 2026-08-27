@@ -23,6 +23,38 @@ const DENOMINATIONS = [
   { value: 1, label: '₹1 Coin', isNote: false },
 ];
 
+const emptyDenoms: DenominationCounts = {
+  '500': 0,
+  '200': 0,
+  '100': 0,
+  '50': 0,
+  '20': 0,
+  '10': 0,
+  '5': 0,
+  '2': 0,
+  '1': 0,
+};
+
+const parseDenominationsFromNote = (note?: string): DenominationCounts | null => {
+  if (!note) return null;
+  const match = note.match(/Cash in Hand \(([^)]+)\)/);
+  if (!match) return null;
+  const parts = match[1].split(',');
+  const parsed: DenominationCounts = { ...emptyDenoms };
+  let hasValue = false;
+  parts.forEach(part => {
+    const [val, count] = part.trim().split('x');
+    if (val && count && parsed[val] !== undefined) {
+      const numCount = parseInt(count, 10);
+      if (!isNaN(numCount) && numCount > 0) {
+        parsed[val] = numCount;
+        hasValue = true;
+      }
+    }
+  });
+  return hasValue ? parsed : null;
+};
+
 export const DailyClosingModal: React.FC = () => {
   const {
     isClosingModalOpen,
@@ -50,17 +82,7 @@ export const DailyClosingModal: React.FC = () => {
 
   const [selectedCounter, setSelectedCounter] = useState<string>('KRISHNA');
 
-  const [denoms, setDenoms] = useState<DenominationCounts>({
-    '500': 0,
-    '200': 0,
-    '100': 0,
-    '50': 0,
-    '20': 0,
-    '10': 0,
-    '5': 0,
-    '2': 0,
-    '1': 0,
-  });
+  const [denoms, setDenoms] = useState<DenominationCounts>({ ...emptyDenoms });
 
   const [closingNotes, setClosingNotes] = useState<string>('');
   const [closedBy, setClosedBy] = useState<string>('Counter Staff');
@@ -101,28 +123,24 @@ export const DailyClosingModal: React.FC = () => {
     t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
   );
 
-  // Helper to calculate breakdown
-  const calculateBreakdown = (amount: number): DenominationCounts => {
-    let remaining = Math.max(0, amount);
-    const newDenoms: DenominationCounts = {};
-    [500, 200, 100, 50, 20, 10, 5, 2, 1].forEach(d => {
-      const count = Math.floor(remaining / d);
-      newDenoms[d.toString()] = count;
-      remaining -= count * d;
-    });
-    return newDenoms;
-  };
-
-  // Prepopulate when counter changes or modal opens
+  // Reset or load saved denominations when modal opens or counter changes
   useEffect(() => {
     if (isClosingModalOpen) {
-      if (existingCashInHandTx && existingCashInHandTx.amount > 0) {
-        setDenoms(calculateBreakdown(existingCashInHandTx.amount));
-      } else {
-        setDenoms(calculateBreakdown(expectedCounterCash));
+      if (existingCashInHandTx?.note) {
+        const parsed = parseDenominationsFromNote(existingCashInHandTx.note);
+        if (parsed) {
+          setDenoms(parsed);
+          const remarks = existingCashInHandTx.note.includes(' • ')
+            ? existingCashInHandTx.note.split(' • ').slice(1).join(' • ')
+            : (!existingCashInHandTx.note.startsWith('Cash in Hand') ? existingCashInHandTx.note : '');
+          setClosingNotes(remarks);
+          return;
+        }
       }
+      setDenoms({ ...emptyDenoms });
+      setClosingNotes('');
     }
-  }, [isClosingModalOpen, selectedCounter, expectedCounterCash, existingCashInHandTx]);
+  }, [isClosingModalOpen, selectedCounter, existingCashInHandTx]);
 
   if (!isClosingModalOpen) return null;
 
@@ -147,23 +165,8 @@ export const DailyClosingModal: React.FC = () => {
     }));
   };
 
-  const handleAutoFillExpected = () => {
-    setDenoms(calculateBreakdown(expectedCounterCash));
-    showToast(`Auto-filled with ${formatCurrency(expectedCounterCash, config.currency)} expected cash`);
-  };
-
   const handleClearAll = () => {
-    setDenoms({
-      '500': 0,
-      '200': 0,
-      '100': 0,
-      '50': 0,
-      '20': 0,
-      '10': 0,
-      '5': 0,
-      '2': 0,
-      '1': 0,
-    });
+    setDenoms({ ...emptyDenoms });
   };
 
   const handleFinalizeClosing = () => {
@@ -508,17 +511,17 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                 />
               </div>
 
-              {/* Action Buttons: Clear, Auto-fill, Save */}
+              {/* Action Buttons: Clear All & Save Cash in Hand */}
               <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                 <button
                   type="button"
                   style={{
-                    padding: '0.55rem 0.75rem',
+                    padding: '0.65rem 0.85rem',
                     background: '#f1f5f9',
                     border: '1px solid #cbd5e1',
                     color: '#475569',
                     borderRadius: '5px',
-                    fontSize: '0.75rem',
+                    fontSize: '0.775rem',
                     fontWeight: 800,
                     cursor: 'pointer',
                   }}
@@ -526,24 +529,6 @@ ${closingNotes ? `📝 Note: ${closingNotes}` : ''}`;
                   title="Reset all counts to 0"
                 >
                   Clear All
-                </button>
-
-                <button
-                  type="button"
-                  style={{
-                    padding: '0.55rem 0.75rem',
-                    background: '#eff6ff',
-                    border: '1.5px solid #bfdbfe',
-                    color: '#1d4ed8',
-                    borderRadius: '5px',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                  }}
-                  onClick={handleAutoFillExpected}
-                  title="Auto-fill with expected cash"
-                >
-                  Auto-Fill Expected
                 </button>
 
                 <button

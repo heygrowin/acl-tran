@@ -23,7 +23,7 @@ export const RunningBalanceBar: React.FC = () => {
     loans,
     setAdminTab,
     todayTransactions,
-    openCounterModal,
+    openClosingModal,
     deleteTransaction,
     selectedMember,
   } = useApp();
@@ -37,28 +37,7 @@ export const RunningBalanceBar: React.FC = () => {
   const activeBorrowersCount = loans.filter(l => l.pendingAmount > 0).length;
 
   const handleEditCashInHandEntry = () => {
-    const existingCashInHand = todayTransactions.find(
-      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
-    );
-    if (existingCashInHand) {
-      openCounterModal(existingCashInHand.type, existingCashInHand, existingCashInHand.staffName || selectedMember);
-    } else {
-      const syntheticTx = {
-        id: '',
-        businessId: config.id,
-        date: selectedDate,
-        time: '12:00',
-        type: 'income' as const,
-        amount: dayBalances.expectedCash,
-        paymentMethod: 'cash',
-        category: 'CASH IN HAND',
-        staffName: selectedMember,
-        note: 'Cash in Hand',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      openCounterModal('income', syntheticTx, selectedMember);
-    }
+    openClosingModal(selectedMember);
   };
 
   const handleDeleteCashInHandEntry = () => {
