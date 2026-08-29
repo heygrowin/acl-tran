@@ -55,6 +55,12 @@ export function sanitizeForFirestore<T>(data: T): T {
   );
 }
 
+export function isTestOrServerEnvironment(): boolean {
+  if (typeof window === 'undefined') return true;
+  if ((window as any).__TEST_ENV__ || (globalThis as any).__TEST_ENV__) return true;
+  return false;
+}
+
 export interface CloudConnectionResult {
   success: boolean;
   status: 'connected' | 'permission_denied' | 'api_disabled' | 'offline' | 'error';
@@ -138,6 +144,7 @@ export function subscribeToTransactions(
   onData: (txs: Transaction[]) => void,
   onError?: (error: any) => void
 ) {
+  if (isTestOrServerEnvironment()) return () => {};
   try {
     const q = query(
       collection(db, COLLECTIONS.TRANSACTIONS),
@@ -172,6 +179,7 @@ export function subscribeToClosings(
   onData: (closings: Record<string, DailyClosing>) => void,
   onError?: (error: any) => void
 ) {
+  if (isTestOrServerEnvironment()) return () => {};
   try {
     const q = query(
       collection(db, COLLECTIONS.CLOSINGS),
@@ -205,6 +213,7 @@ export function subscribeToLoans(
   onData: (loans: LoanRecord[]) => void,
   onError?: (error: any) => void
 ) {
+  if (isTestOrServerEnvironment()) return () => {};
   try {
     const q = query(
       collection(db, COLLECTIONS.LOANS),
@@ -238,6 +247,7 @@ export function subscribeToConfig(
   onData: (config: BusinessConfig) => void,
   onError?: (error: any) => void
 ) {
+  if (isTestOrServerEnvironment()) return () => {};
   try {
     const configDocRef = doc(db, COLLECTIONS.CONFIG, businessId);
     return onSnapshot(
@@ -262,6 +272,7 @@ export function subscribeToConfig(
 // --- Cloud Write Operations ---
 
 export async function saveTransactionToCloud(tx: Transaction): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     const clean = sanitizeForFirestore(tx);
     await setDoc(doc(db, COLLECTIONS.TRANSACTIONS, tx.id), clean, { merge: true });
@@ -273,6 +284,7 @@ export async function saveTransactionToCloud(tx: Transaction): Promise<boolean> 
 }
 
 export async function deleteTransactionFromCloud(txId: string): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     await deleteDoc(doc(db, COLLECTIONS.TRANSACTIONS, txId));
     return true;
@@ -283,6 +295,7 @@ export async function deleteTransactionFromCloud(txId: string): Promise<boolean>
 }
 
 export async function saveClosingToCloud(closing: DailyClosing): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     const clean = sanitizeForFirestore(closing);
     const id = `${closing.businessId}_${closing.date}`;
@@ -295,6 +308,7 @@ export async function saveClosingToCloud(closing: DailyClosing): Promise<boolean
 }
 
 export async function saveLoanToCloud(loan: LoanRecord): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     const clean = sanitizeForFirestore(loan);
     await setDoc(doc(db, COLLECTIONS.LOANS, loan.id), clean, { merge: true });
@@ -306,6 +320,7 @@ export async function saveLoanToCloud(loan: LoanRecord): Promise<boolean> {
 }
 
 export async function deleteLoanFromCloud(loanId: string): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     await deleteDoc(doc(db, COLLECTIONS.LOANS, loanId));
     return true;
@@ -316,6 +331,7 @@ export async function deleteLoanFromCloud(loanId: string): Promise<boolean> {
 }
 
 export async function saveConfigToCloud(config: BusinessConfig): Promise<boolean> {
+  if (isTestOrServerEnvironment()) return true;
   try {
     const clean = sanitizeForFirestore(config);
     await setDoc(doc(db, COLLECTIONS.CONFIG, config.id), clean, { merge: true });
@@ -331,6 +347,7 @@ export async function deleteTransactionsBetweenInCloud(
   startDate: string,
   endDate: string
 ): Promise<number> {
+  if (isTestOrServerEnvironment()) return 0;
   try {
     const q = query(
       collection(db, COLLECTIONS.TRANSACTIONS),

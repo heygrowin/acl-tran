@@ -287,9 +287,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastCloudSync(Date.now());
         if (cloudConfig) {
           const localConfig = storage.getConfig();
+          const mergedCounters = (cloudConfig.counters || localConfig.counters || []).map(cloudC => {
+            const localC = (localConfig.counters || []).find(
+              lc => lc.id === cloudC.id || (lc.name && cloudC.name && lc.name.trim().toUpperCase() === cloudC.name.trim().toUpperCase())
+            );
+            const resolvedPass = (cloudC.password && String(cloudC.password).trim()) || (localC?.password && String(localC.password).trim()) || undefined;
+            return {
+              ...localC,
+              ...cloudC,
+              password: resolvedPass,
+            };
+          });
+
           const mergedConfig: BusinessConfig = {
             ...localConfig,
             ...cloudConfig,
+            counters: mergedCounters,
             incomeCategories: Array.isArray(cloudConfig.incomeCategories) ? cloudConfig.incomeCategories : localConfig.incomeCategories,
             expenseCategories: Array.isArray(cloudConfig.expenseCategories) ? cloudConfig.expenseCategories : localConfig.expenseCategories,
           };
@@ -449,10 +462,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return true;
       }
     } else {
-      const matchedCounter = counters.find(c => c.name.toLowerCase() === member.toLowerCase());
-      const expectedPassword = matchedCounter?.password || config.employeePassword || 'P@counter';
+      const matchedCounter = counters.find(
+        c => c.name && c.name.trim().toLowerCase() === member.trim().toLowerCase()
+      );
+      const customPass = (matchedCounter?.password && String(matchedCounter.password).trim()) ? String(matchedCounter.password).trim() : null;
+      const expectedPassword = customPass || config.employeePassword || 'P@counter';
       
-      if (password === expectedPassword) {
+      if (password.trim() === expectedPassword.trim()) {
         const staffName = matchedCounter ? matchedCounter.name : member;
         setSelectedMember(staffName);
         setCurrentScreen('employee');

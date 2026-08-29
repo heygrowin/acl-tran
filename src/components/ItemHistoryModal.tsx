@@ -39,7 +39,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
   } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<string>(category);
-  const [selectedPreset, setSelectedPreset] = useState<PresetRange>('7days');
+  const [selectedPreset, setSelectedPreset] = useState<PresetRange>('today');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -97,7 +97,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
       }
     });
     // Add default common items if not present
-    ['TEA', 'TEATRANSPORT', 'FOOD', 'PARSAL', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
+    ['TEA', 'FOOD', 'PARSAL', 'TEATRANSPORT', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
       if (!catMap.has(c)) catMap.set(c, 0);
     });
     return Array.from(catMap.entries())
@@ -167,17 +167,6 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
     return matchedTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   }, [matchedTransactions]);
 
-  const entryCount = matchedTransactions.length;
-  const avgPerEntry = entryCount > 0 ? Math.round(totalAmount / entryCount) : 0;
-
-  // Distinct days count
-  const activeDaysCount = useMemo(() => {
-    const days = new Set(matchedTransactions.map(t => t.date));
-    return days.size || 1;
-  }, [matchedTransactions]);
-
-  const avgDailySpend = Math.round(totalAmount / activeDaysCount);
-
   // Cashier Breakdown
   const cashierDistribution = useMemo(() => {
     const map: Record<string, { count: number; total: number }> = {};
@@ -221,7 +210,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, `${activeCategory}_History`);
 
-    const filename = `${activeCategory}_Analysis_${startDate || 'all'}_to_${endDate || 'all'}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+    const filename = `${activeCategory}_${startDate || 'all'}_to_${endDate || 'all'}.${format === 'excel' ? 'xlsx' : 'csv'}`;
     XLSX.writeFile(workbook, filename, { bookType: format === 'excel' ? 'xlsx' : 'csv' });
     showToast(`Exported ${filename}`, 'success');
   };
@@ -248,15 +237,14 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
           padding: 0,
           overflow: 'hidden',
           borderRadius: '16px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
+          border: '1px solid #334155',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.4)',
         }}
       >
-        {/* Modal Header */}
+        {/* Modal Top Header */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            background: '#0f172a',
             color: '#ffffff',
             padding: '0.85rem 1.25rem',
             display: 'flex',
@@ -266,45 +254,9 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                fontWeight: 900,
-                fontSize: '1.1rem',
-                boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
-              }}
-            >
-              📊
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                  {activeCategory} History & Analysis
-                </h2>
-                <span
-                  style={{
-                    fontSize: '0.675rem',
-                    fontWeight: 800,
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: '9999px',
-                    background: '#334155',
-                    color: '#cbd5e1',
-                  }}
-                >
-                  {entryCount} Entries
-                </span>
-              </div>
-              <p style={{ margin: '0.1rem 0 0', fontSize: '0.725rem', color: '#94a3b8' }}>
-                Item-specific spend breakdown, time-stamps, and cashier history
-              </p>
-            </div>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.01em' }}>
+              {activeCategory}
+            </h2>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -328,7 +280,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
               title="Open full dedicated Item Analysis tab"
             >
               <ExternalLink size={12} />
-              <span>Full Tab View</span>
+              <span>Full Tab</span>
             </button>
 
             <button
@@ -361,7 +313,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
               <span style={{ fontSize: '0.725rem', fontWeight: 800, color: '#475569', whiteSpace: 'nowrap' }}>
                 Item:
               </span>
-              {allAvailableCategories.slice(0, 5).map(catName => {
+              {allAvailableCategories.slice(0, 6).map(catName => {
                 const isSelected = activeCategory.toUpperCase() === catName;
                 return (
                   <button
@@ -406,7 +358,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
                   }}
                   onClick={() => setIsCategoryPickerOpen(prev => !prev)}
                 >
-                  <span>More Items</span>
+                  <span>More</span>
                   <ChevronDown size={12} />
                 </button>
 
@@ -512,7 +464,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
                   value={selectedCashier}
                   onChange={e => setSelectedCashier(e.target.value)}
                 >
-                  <option value="all">All Staff / Counters</option>
+                  <option value="all">All Staff</option>
                   {cashierDistribution.map(c => (
                     <option key={c.staff} value={c.staff}>
                       {c.staff} ({formatCurrency(c.total, config.currency)})
@@ -526,7 +478,7 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
                 <Search size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
                   type="text"
-                  placeholder="Search remarks, time..."
+                  placeholder="Search..."
                   style={{
                     width: '100%',
                     padding: '0.25rem 0.5rem 0.25rem 1.6rem',
@@ -595,140 +547,30 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
-          {/* 4 Metric Summary Cards */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '0.65rem',
-              marginBottom: '1rem',
-            }}
-          >
-            {/* 1. Total Spend */}
+          {/* Total Spending in Range Card */}
+          <div style={{ maxWidth: '300px', marginBottom: '1rem' }}>
             <div
               style={{
                 background: '#fafafa',
                 border: '1.5px solid #e2e8f0',
                 borderRadius: '10px',
-                padding: '0.65rem 0.8rem',
+                padding: '0.65rem 0.85rem',
               }}
             >
-              <div style={{ fontSize: '0.675rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-                Total Spend ({selectedPreset})
+              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                Total Spending in Range
               </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0 0.1rem' }}>
+              <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0 0' }}>
                 {formatCurrency(totalAmount, config.currency)}
-              </div>
-              <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
-                Across {activeDaysCount} active day(s)
-              </div>
-            </div>
-
-            {/* 2. Frequency Count */}
-            <div
-              style={{
-                background: '#eff6ff',
-                border: '1.5px solid #bfdbfe',
-                borderRadius: '10px',
-                padding: '0.65rem 0.8rem',
-              }}
-            >
-              <div style={{ fontSize: '0.675rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>
-                Total Transactions
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#1e3a8a', margin: '0.2rem 0 0.1rem' }}>
-                {entryCount} <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>times</span>
-              </div>
-              <div style={{ fontSize: '0.675rem', color: '#3b82f6' }}>
-                ~{(entryCount / (activeDaysCount || 1)).toFixed(1)} entries / day
-              </div>
-            </div>
-
-            {/* 3. Average per Day */}
-            <div
-              style={{
-                background: '#f0fdf4',
-                border: '1.5px solid #bbf7d0',
-                borderRadius: '10px',
-                padding: '0.65rem 0.8rem',
-              }}
-            >
-              <div style={{ fontSize: '0.675rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase' }}>
-                Daily Average Spend
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#166534', margin: '0.2rem 0 0.1rem' }}>
-                {formatCurrency(avgDailySpend, config.currency)}
-              </div>
-              <div style={{ fontSize: '0.675rem', color: '#16a34a' }}>
-                Avg per entry: {formatCurrency(avgPerEntry, config.currency)}
-              </div>
-            </div>
-
-            {/* 4. Top Spender Cashier */}
-            <div
-              style={{
-                background: '#faf5ff',
-                border: '1.5px solid #e9d5ff',
-                borderRadius: '10px',
-                padding: '0.65rem 0.8rem',
-              }}
-            >
-              <div style={{ fontSize: '0.675rem', fontWeight: 700, color: '#7e22ce', textTransform: 'uppercase' }}>
-                Top Spender Cashier
-              </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#581c87', margin: '0.2rem 0 0.1rem' }}>
-                {cashierDistribution[0]?.staff || 'None'}
-              </div>
-              <div style={{ fontSize: '0.675rem', color: '#a855f7' }}>
-                {cashierDistribution[0] ? `${formatCurrency(cashierDistribution[0].total, config.currency)} (${cashierDistribution[0].pct}%)` : 'No data'}
               </div>
             </div>
           </div>
 
-          {/* Cashier Share Progress Bars */}
-          {cashierDistribution.length > 0 && (
-            <div
-              style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                padding: '0.65rem 0.85rem',
-                marginBottom: '1rem',
-              }}
-            >
-              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#334155', marginBottom: '0.45rem' }}>
-                Cashier & Counter Spend Distribution:
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {cashierDistribution.map(item => (
-                  <div key={item.staff} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.725rem' }}>
-                    <div style={{ width: '80px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.staff}
-                    </div>
-                    <div style={{ flex: 1, background: '#e2e8f0', height: '10px', borderRadius: '9999px', overflow: 'hidden', position: 'relative' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${item.pct}%`,
-                          background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
-                          borderRadius: '9999px',
-                        }}
-                      />
-                    </div>
-                    <div style={{ width: '130px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>
-                      <strong>{formatCurrency(item.total, config.currency)}</strong> ({item.pct}% • {item.count}x)
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Chronological History Log List / Table */}
+          {/* Chronological Transaction Log Table */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-                🕒 Chronological Entry Records ({matchedTransactions.length})
+              <div style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a' }}>
+                🕒 Transaction Log ({matchedTransactions.length})
               </div>
               <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
                 Click Edit to adjust or delete entries

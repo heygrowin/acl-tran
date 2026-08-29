@@ -26,11 +26,12 @@ export const ItemAnalysisScreen: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [selectedPreset, setSelectedPreset] = useState<PresetRange>('7days');
+  const [selectedPreset, setSelectedPreset] = useState<PresetRange>('thisMonth');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<string>(selectedAnalysisCategory || 'TEA');
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
+  const [categorySearch, setCategorySearch] = useState<string>('');
   const [selectedCashier, setSelectedCashier] = useState<string>('all');
   const [selectedMethod, setSelectedMethod] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -76,7 +77,7 @@ export const ItemAnalysisScreen: React.FC = () => {
     }
   }, [selectedPreset, todayStr]);
 
-  // 1. Extract All Categories & Heads across the system with stats
+  // 1. Extract All Categories & Heads across the system with frequency stats
   const categoryStatsList = useMemo(() => {
     const map = new Map<string, { name: string; count: number; total: number; type: 'income' | 'expense' }>();
 
@@ -102,7 +103,7 @@ export const ItemAnalysisScreen: React.FC = () => {
     });
 
     // Ensure default common heads exist
-    ['TEA', 'TEATRANSPORT', 'FOOD', 'PARSAL', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
+    ['TEA', 'FOOD', 'PARSAL', 'TEATRANSPORT', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
       if (!map.has(c)) {
         map.set(c, {
           name: c,
@@ -113,17 +114,36 @@ export const ItemAnalysisScreen: React.FC = () => {
       }
     });
 
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    // Sort primarily by frequency (count descending), then by total spend descending
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return b.total - a.total;
+    });
   }, [transactions]);
 
-  // Filtered categories for chips
+  // Filtered categories for chips based on search and frequency
   const filteredCategoryChips = useMemo(() => {
-    return categoryStatsList.filter(c => {
+    let list = categoryStatsList.filter(c => {
       if (filterType === 'expense' && c.type !== 'expense') return false;
       if (filterType === 'income' && c.type !== 'income') return false;
+      if (categorySearch.trim()) {
+        return c.name.toLowerCase().includes(categorySearch.trim().toLowerCase());
+      }
       return true;
     });
-  }, [categoryStatsList, filterType]);
+
+    // If no search is entered, show only high frequency items (items with activity or top 12)
+    if (!categorySearch.trim()) {
+      const activeItems = list.filter(c => c.count > 0);
+      if (activeItems.length > 0) {
+        list = activeItems.slice(0, 12);
+      } else {
+        list = list.slice(0, 8);
+      }
+    }
+
+    return list;
+  }, [categoryStatsList, filterType, categorySearch]);
 
   // 2. Transactions Matched for the Selected Category & Filter Scope
   const activeCategoryTxs = useMemo(() => {
@@ -185,66 +205,19 @@ export const ItemAnalysisScreen: React.FC = () => {
     });
   }, [activeCategory, transactions, startDate, endDate, selectedCashier, selectedMethod, searchTerm]);
 
-  // Aggregated Metrics for Active Category
+  // Total Amount for Active Category
   const totalAmount = useMemo(() => {
     return activeCategoryTxs.reduce((sum, t) => sum + (t.amount || 0), 0);
   }, [activeCategoryTxs]);
 
-  const entryCount = activeCategoryTxs.length;
-  const avgPerEntry = entryCount > 0 ? Math.round(totalAmount / entryCount) : 0;
-
-  const distinctDaysCount = useMemo(() => {
-    return new Set(activeCategoryTxs.map(t => t.date)).size || 1;
-  }, [activeCategoryTxs]);
-
-  const avgDailySpend = Math.round(totalAmount / distinctDaysCount);
-
-  // Cashier Breakdown
-  const cashierBreakdown = useMemo(() => {
-    const map: Record<string, { count: number; total: number }> = {};
+  // Cashier List for filter dropdown
+  const cashierList = useMemo(() => {
+    const set = new Set<string>();
     activeCategoryTxs.forEach(t => {
       const staff = (t.staffName || 'OTHER').trim().toUpperCase();
-      if (!map[staff]) map[staff] = { count: 0, total: 0 };
-      map[staff].count += 1;
-      map[staff].total += (t.amount || 0);
+      set.add(staff);
     });
-
-    return Object.entries(map)
-      .map(([staff, data]) => ({
-        staff,
-        count: data.count,
-        total: data.total,
-        pct: totalAmount > 0 ? Math.round((data.total / totalAmount) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [activeCategoryTxs, totalAmount]);
-
-  // Payment Method Breakdown
-  const methodBreakdown = useMemo(() => {
-    const map: Record<string, number> = { cash: 0, upi: 0, rtgs: 0 };
-    activeCategoryTxs.forEach(t => {
-      const m = (t.paymentMethod || 'cash').toLowerCase();
-      map[m] = (map[m] || 0) + (t.amount || 0);
-    });
-    return map;
-  }, [activeCategoryTxs]);
-
-  // Daily Spending Timeline Grouping for Bar Visualizer
-  const dailySpendTimeline = useMemo(() => {
-    const map: Record<string, number> = {};
-    activeCategoryTxs.forEach(t => {
-      const d = t.date || '';
-      map[d] = (map[d] || 0) + (t.amount || 0);
-    });
-
-    const dates = Object.keys(map).sort((a, b) => a.localeCompare(b));
-    const maxVal = Math.max(...Object.values(map), 1);
-
-    return dates.map(d => ({
-      date: d,
-      amount: map[d],
-      pct: Math.round((map[d] / maxVal) * 100),
-    }));
+    return Array.from(set).sort();
   }, [activeCategoryTxs]);
 
   // Export to Excel / CSV
@@ -270,7 +243,7 @@ export const ItemAnalysisScreen: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, `${activeCategory}_Data`);
 
-    const filename = `${activeCategory}_Analytics_${startDate || 'all'}_to_${endDate || 'all'}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+    const filename = `${activeCategory}_${startDate || 'all'}_to_${endDate || 'all'}.${format === 'excel' ? 'xlsx' : 'csv'}`;
     XLSX.writeFile(workbook, filename, { bookType: format === 'excel' ? 'xlsx' : 'csv' });
     showToast(`Exported ${filename}`, 'success');
   };
@@ -282,47 +255,26 @@ export const ItemAnalysisScreen: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
-      {/* Top Header & Range Controls */}
+      {/* Top Header & Clean Date Range Controls */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '0.85rem',
+          marginBottom: '0.75rem',
           flexWrap: 'wrap',
           gap: '0.5rem',
           background: '#ffffff',
-          padding: '0.75rem 1rem',
-          borderRadius: '12px',
+          padding: '0.65rem 0.85rem',
+          borderRadius: '10px',
           border: '1px solid #e2e8f0',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.2rem',
-              boxShadow: '0 4px 10px rgba(59, 130, 246, 0.3)',
-            }}
-          >
-            📊
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
-              Item Specific Expense & Revenue Intelligence
-            </h1>
-            <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-              Deep-dive into recurring expenses (Tea, Food, Parsal, etc.), detect anomalies, and track cashier spend patterns
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+            Item Analysis
+          </h1>
         </div>
 
         {/* Date Range Presets */}
@@ -362,20 +314,20 @@ export const ItemAnalysisScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* CATEGORY SELECTOR & QUICK ITEM CHIPS */}
+      {/* CATEGORY SELECTOR & QUICK ITEM CHIPS WITH SEARCH */}
       <div
         style={{
           background: '#ffffff',
-          borderRadius: '12px',
+          borderRadius: '10px',
           border: '1px solid #e2e8f0',
-          padding: '0.85rem 1rem',
-          marginBottom: '1rem',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+          padding: '0.75rem 0.85rem',
+          marginBottom: '0.85rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.55rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
               Select Item / Category:
             </span>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', gap: '0.15rem' }}>
@@ -391,15 +343,36 @@ export const ItemAnalysisScreen: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            {/* Category Search Input */}
+            <div style={{ position: 'relative', width: '180px' }}>
+              <Search size={11} style={{ position: 'absolute', left: '7px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <input
+                type="text"
+                placeholder="Search item / category..."
+                style={{
+                  width: '100%',
+                  padding: '0.2rem 0.4rem 0.2rem 1.5rem',
+                  fontSize: '0.725rem',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                value={categorySearch}
+                onChange={e => setCategorySearch(e.target.value)}
+              />
+            </div>
           </div>
 
           <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-            Active Item: <strong style={{ color: '#0f172a' }}>{activeCategory}</strong>
+            Active: <strong style={{ color: '#0f172a' }}>{activeCategory}</strong>
           </div>
         </div>
 
-        {/* Scrollable Quick Category Chips */}
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', maxHeight: '110px', overflowY: 'auto', padding: '0.1rem 0' }}>
+        {/* High Frequency Category Chips */}
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', padding: '0.1rem 0' }}>
           {filteredCategoryChips.map(c => {
             const isSelected = activeCategory.toUpperCase() === c.name;
             return (
@@ -414,11 +387,11 @@ export const ItemAnalysisScreen: React.FC = () => {
                   color: isSelected ? '#ffffff' : '#1e293b',
                   border: isSelected ? '1.8px solid #0f172a' : '1px solid #cbd5e1',
                   borderRadius: '9999px',
-                  padding: '0.3rem 0.75rem',
-                  fontSize: '0.75rem',
+                  padding: '0.25rem 0.65rem',
+                  fontSize: '0.725rem',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.2)' : 'none',
+                  boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.18)' : 'none',
                   transition: 'all 0.12s ease',
                   transform: isSelected ? 'scale(1.02)' : 'none',
                 }}
@@ -427,7 +400,7 @@ export const ItemAnalysisScreen: React.FC = () => {
                 <span>{c.name}</span>
                 <span
                   style={{
-                    fontSize: '0.65rem',
+                    fontSize: '0.625rem',
                     fontWeight: 800,
                     padding: '0.05rem 0.35rem',
                     borderRadius: '9999px',
@@ -443,34 +416,23 @@ export const ItemAnalysisScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 📊 SELECTED ITEM DEEP-DIVE INTELLIGENCE */}
+      {/* SELECTED ITEM VIEW */}
       <div
         style={{
           background: '#ffffff',
           borderRadius: '12px',
           border: '1.5px solid #0f172a',
-          padding: '1rem 1.25rem',
+          padding: '0.9rem 1.15rem',
           marginBottom: '1rem',
           boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
         }}
       >
-        {/* Item Header Banner */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        {/* Clean Item Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.3rem' }}>☕</span>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>
-                  {activeCategory} Intelligence Breakdown
-                </h2>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: '4px', background: '#e2e8f0', color: '#334155' }}>
-                  Scope: {selectedPreset.toUpperCase()}
-                </span>
-              </div>
-              <p style={{ margin: '0.1rem 0 0', fontSize: '0.725rem', color: '#64748b' }}>
-                Auditing all records across cashiers, dates, and payment methods
-              </p>
-            </div>
+            <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.01em' }}>
+              {activeCategory}
+            </h2>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -497,168 +459,25 @@ export const ItemAnalysisScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* 4 Metric Summary Cards */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '0.75rem',
-            marginBottom: '1rem',
-          }}
-        >
-          {/* 1. Total Spend */}
-          <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-              Total Spend in Range
+        {/* Single Total Spending in Range Card */}
+        <div style={{ maxWidth: '300px', marginBottom: '1rem' }}>
+          <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem' }}>
+            <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+              Total Spending in Range
             </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0 0.1rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0 0' }}>
               {formatCurrency(totalAmount, config.currency)}
             </div>
-            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-              Over {distinctDaysCount} distinct day(s)
-            </div>
-          </div>
-
-          {/* 2. Frequency & Count */}
-          <div style={{ background: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>
-              Entry Frequency
-            </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#1e3a8a', margin: '0.2rem 0 0.1rem' }}>
-              {entryCount} <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>entries</span>
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#2563eb' }}>
-              ~{(entryCount / (distinctDaysCount || 1)).toFixed(1)} times per active day
-            </div>
-          </div>
-
-          {/* 3. Daily Average */}
-          <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
-              Daily Average Spend
-            </div>
-            <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#15803d', margin: '0.2rem 0 0.1rem' }}>
-              {formatCurrency(avgDailySpend, config.currency)}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#16a34a' }}>
-              Avg per entry: {formatCurrency(avgPerEntry, config.currency)}
-            </div>
-          </div>
-
-          {/* 4. Top Cashier */}
-          <div style={{ background: '#faf5ff', border: '1.5px solid #d8b4fe', borderRadius: '10px', padding: '0.75rem 0.9rem' }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase' }}>
-              Primary Spender Cashier
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#581c87', margin: '0.2rem 0 0.1rem' }}>
-              {cashierBreakdown[0]?.staff || 'None'}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: '#7e22ce' }}>
-              {cashierBreakdown[0] ? `${formatCurrency(cashierBreakdown[0].total, config.currency)} (${cashierBreakdown[0].pct}%)` : 'No data'}
-            </div>
           </div>
         </div>
 
-        {/* 2-Column Split: Left = Cashier & Method Breakdown, Right = Spending Timeline */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-          {/* Left: Cashier Breakdown & Method Split */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem' }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
-              👥 Cashier & Counter Distribution:
-            </div>
-            {cashierBreakdown.length === 0 ? (
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No cashier records found</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                {cashierBreakdown.map(item => (
-                  <div key={item.staff} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
-                    <div style={{ width: '85px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.staff}
-                    </div>
-                    <div style={{ flex: 1, background: '#e2e8f0', height: '12px', borderRadius: '9999px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${item.pct}%`,
-                          background: 'linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)',
-                          borderRadius: '9999px',
-                        }}
-                      />
-                    </div>
-                    <div style={{ width: '130px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>
-                      <strong>{formatCurrency(item.total, config.currency)}</strong> ({item.pct}% • {item.count}x)
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Payment Method Split */}
-            <div style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.725rem', fontWeight: 800, color: '#64748b' }}>Payment Mode:</span>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#ecfdf5', color: '#166534', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                  Cash: {formatCurrency(methodBreakdown.cash, config.currency)}
-                </span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#faf5ff', color: '#6b21a8', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                  UPI: {formatCurrency(methodBreakdown.upi, config.currency)}
-                </span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, background: '#eff6ff', color: '#1e40af', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                  RTGS: {formatCurrency(methodBreakdown.rtgs, config.currency)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Daily Spend Timeline Bar Visualizer */}
-          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0f172a' }}>
-                📈 Day-by-Day Timeline Spend:
-              </span>
-              <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                {dailySpendTimeline.length} active day(s)
-              </span>
-            </div>
-
-            {dailySpendTimeline.length === 0 ? (
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0', textAlign: 'center' }}>
-                No daily timeline data available for this range
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '150px', overflowY: 'auto' }}>
-                {dailySpendTimeline.map(item => (
-                  <div key={item.date} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.725rem' }}>
-                    <span style={{ width: '80px', color: '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {formatDDMMYYYY(item.date)}
-                    </span>
-                    <div style={{ flex: 1, background: '#e2e8f0', height: '10px', borderRadius: '9999px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${item.pct}%`,
-                          background: item.amount > avgDailySpend * 1.5 ? '#ef4444' : '#10b981',
-                          borderRadius: '9999px',
-                        }}
-                      />
-                    </div>
-                    <span style={{ width: '85px', textAlign: 'right', fontWeight: 800, color: item.amount > avgDailySpend * 1.5 ? '#dc2626' : '#0f172a' }}>
-                      {formatCurrency(item.amount, config.currency)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 📑 DETAILED TRANSACTION RECORDS TABLE */}
-        <div style={{ marginTop: '1rem' }}>
+        {/* 📑 DETAILED TRANSACTION LOG */}
+        <div style={{ marginTop: '0.75rem' }}>
           {/* Table Filter Controls */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.55rem', flexWrap: 'wrap', gap: '0.4rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-                🕒 Transaction Ledger ({activeCategoryTxs.length})
+              <span style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a' }}>
+                🕒 Transaction Log ({activeCategoryTxs.length})
               </span>
 
               {/* Cashier Filter Dropdown */}
@@ -676,8 +495,8 @@ export const ItemAnalysisScreen: React.FC = () => {
                 onChange={e => setSelectedCashier(e.target.value)}
               >
                 <option value="all">All Cashiers</option>
-                {cashierBreakdown.map(c => (
-                  <option key={c.staff} value={c.staff}>{c.staff}</option>
+                {cashierList.map(staff => (
+                  <option key={staff} value={staff}>{staff}</option>
                 ))}
               </select>
 
@@ -780,7 +599,7 @@ export const ItemAnalysisScreen: React.FC = () => {
               <div style={{ fontSize: '0.725rem', color: '#94a3b8' }}>Try changing the date range or clearing cashier filters</div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '350px', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '420px', overflowY: 'auto' }}>
               {activeCategoryTxs.map(tx => {
                 const isIncome = tx.type === 'income';
                 const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
@@ -893,3 +712,4 @@ export const ItemAnalysisScreen: React.FC = () => {
     </div>
   );
 };
+

@@ -9,7 +9,7 @@ import {
   X,
   Trash2,
 } from 'lucide-react';
-import { formatCurrency, storage } from '../services/storageService';
+import { formatCurrency, storage, isCashInHandTransaction } from '../services/storageService';
 
 export const RunningBalanceBar: React.FC = () => {
   const {
@@ -23,8 +23,8 @@ export const RunningBalanceBar: React.FC = () => {
     loans,
     setAdminTab,
     todayTransactions,
-    openClosingModal,
     deleteTransaction,
+    openClosingModal,
     selectedMember,
   } = useApp();
 
@@ -42,7 +42,7 @@ export const RunningBalanceBar: React.FC = () => {
 
   const handleDeleteCashInHandEntry = () => {
     const existingCashInHand = todayTransactions.find(
-      t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+      t => isCashInHandTransaction(t)
     );
     if (existingCashInHand) {
       if (confirm(`Delete Cash in Hand entry of ${formatCurrency(existingCashInHand.amount, config.currency)}?`)) {

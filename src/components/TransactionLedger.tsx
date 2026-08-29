@@ -16,7 +16,7 @@ import {
   Building,
   QrCode,
 } from 'lucide-react';
-import { formatCurrency, getTodayDateString, formatDDMMYYYY, storage } from '../services/storageService';
+import { formatCurrency, getTodayDateString, formatDDMMYYYY, storage, isCashInHandTransaction } from '../services/storageService';
 import { ExportModal } from './ExportModal';
 import { SummaryDrilldownModal } from './SummaryDrilldownModal';
 
@@ -34,8 +34,9 @@ export const formatExpenseTitle = (tx: Transaction) => {
 
 export const isRightSideEntry = (t: Transaction) => {
   if (t.type === 'expense') return true;
+  if (isCashInHandTransaction(t)) return true;
   const cUpper = (t.category || '').trim().toUpperCase();
-  if (cUpper === 'CASH IN HAND' || cUpper === 'BANK (RTGS)') return true;
+  if (cUpper === 'BANK (RTGS)') return true;
   if (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS')) return true;
   return false;
 };
@@ -97,6 +98,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   // Initial Balances Modal State
   const [isInitialBalanceModalOpen, setIsInitialBalanceModalOpen] = useState(false);
+  const [showAdminSplitView, setShowAdminSplitView] = useState(false);
   const [initCashInput, setInitCashInput] = useState('');
   const [initRtgsInput, setInitRtgsInput] = useState('');
   const [initUpiInput, setInitUpiInput] = useState('');
@@ -117,16 +119,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     setIsInitialBalanceModalOpen(false);
   };
 
-  // Date Range for Summary Mode
-  const [summaryStartDate, setSummaryStartDate] = useState(() => {
-    if (isEmployee) {
-      const d = new Date();
-      d.setDate(d.getDate() - 3);
-      return d.toISOString().split('T')[0];
-    }
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]; // 1st of month
-  });
+  // Date Range for Summary Mode (Defaults to Today)
+  const [summaryStartDate, setSummaryStartDate] = useState(todayStr);
   const [summaryEndDate, setSummaryEndDate] = useState(todayStr);
 
   const isToday = selectedDate === todayStr;
@@ -151,44 +145,6 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
       return;
     }
     setSelectedDate(newDateStr);
-  };
-
-  // Quick Preset Handlers for Summary Range
-  const setPresetRange = (preset: 'today' | 'yesterday' | '7days' | 'thisMonth' | 'lastMonth') => {
-    const now = new Date();
-    if (preset === 'today') {
-      setSummaryStartDate(todayStr);
-      setSummaryEndDate(todayStr);
-    } else if (preset === 'yesterday') {
-      const y = new Date();
-      y.setDate(y.getDate() - 1);
-      const yStr = y.toISOString().split('T')[0];
-      setSummaryStartDate(yStr);
-      setSummaryEndDate(yStr);
-    } else if (preset === '7days') {
-      const d7 = new Date();
-      d7.setDate(d7.getDate() - (isEmployee ? 3 : 6));
-      setSummaryStartDate(d7.toISOString().split('T')[0]);
-      setSummaryEndDate(todayStr);
-    } else if (preset === 'thisMonth') {
-      if (isEmployee && minAllowedDate) {
-        setSummaryStartDate(minAllowedDate);
-      } else {
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        setSummaryStartDate(firstDay);
-      }
-      setSummaryEndDate(todayStr);
-    } else if (preset === 'lastMonth') {
-      if (isEmployee && minAllowedDate) {
-        setSummaryStartDate(minAllowedDate);
-        setSummaryEndDate(todayStr);
-      } else {
-        const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-        const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-        setSummaryStartDate(firstDayLastMonth);
-        setSummaryEndDate(lastDayLastMonth);
-      }
-    }
   };
 
   // Active Transactions for Current Scope
@@ -226,8 +182,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   // Helper to determine right side items for a counter (excluding CASH IN HAND)
   const getCounterRightItems = (cTxs: Transaction[]) => {
-    const expenseTxs = cTxs.filter(t => t.type === 'expense' && (t.category || '').trim().toUpperCase() !== 'CASH IN HAND');
-    const incomeTxs = cTxs.filter(t => t.type === 'income' && (t.category || '').trim().toUpperCase() !== 'CASH IN HAND');
+    const expenseTxs = cTxs.filter(t => t.type === 'expense' && !isCashInHandTransaction(t));
+    const incomeTxs = cTxs.filter(t => t.type === 'income' && !isCashInHandTransaction(t));
 
     // Check if there are explicit breakdown income logs (e.g. BANK RTGS, UPI accounts)
     const explicitBreakdownIncomes = incomeTxs.filter(t => {
@@ -265,19 +221,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     // 2. Add explicit breakdown incomes (Green / Transferred)
     if (explicitBreakdownIncomes.length > 0) {
       explicitBreakdownIncomes.forEach(t => {
-        const cUpper = (t.category || '').trim().toUpperCase();
-        let method = (t.paymentMethod || 'cash').toLowerCase();
-        if (cUpper === 'BANK (RTGS)' || cUpper.includes('RTGS')) method = 'rtgs';
-        else if (cUpper.startsWith('UPI')) method = 'upi';
-
+        const cat = (t.category || '').toUpperCase();
+        let subtitle = t.note || '';
+        if (t.paymentAccount) {
+          subtitle = `Account: ${t.paymentAccount}${t.note ? ` * ${t.note}` : ''}`;
+        }
         rightItems.push({
           id: t.id,
-          title: formatExpenseTitle(t),
-          subtitle: t.paymentAccount ? `UPI(${t.paymentAccount})` + (t.note ? ` * ${t.note}` : '') : t.note || t.customerPhone || undefined,
+          title: cat,
+          subtitle: subtitle || undefined,
           amount: t.amount,
           type: 'income',
           originalTx: t,
-          paymentMethod: method,
+          paymentMethod: (t.paymentMethod || '').toLowerCase(),
         });
       });
     } else {
@@ -304,7 +260,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   // Handle Edit / Delete Actions
   const handleDelete = (tx: Transaction) => {
-    const isCashInHand = (tx.category || '').trim().toUpperCase() === 'CASH IN HAND';
+    const isCashInHand = isCashInHandTransaction(tx);
     const label = isCashInHand ? 'Cash in Hand entry' : `${tx.type.toUpperCase()} entry`;
     if (confirm(`Delete ${label} of ${formatCurrency(tx.amount, config.currency)}?`)) {
       deleteTransaction(tx.id);
@@ -341,7 +297,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   const handleDeleteCashInHandForCounter = (counterName: string) => {
     const existingTx = scopedTransactions.find(
       t => (t.staffName || 'OTHER').trim().toUpperCase() === counterName &&
-           (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+           isCashInHandTransaction(t)
     );
     if (existingTx) {
       if (confirm(`Delete Cash in Hand entry of ${formatCurrency(existingTx.amount, config.currency)} for ${counterName}?`)) {
@@ -391,7 +347,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     const subReceive = rTxs.reduce((sum, t) => sum + t.amount, 0);
     const rItems = getCounterRightItems(cTxs);
     const subRight = rItems.reduce((sum, item) => sum + item.amount, 0);
-    const cCashInHand = cTxs.find(t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND')?.amount || 0;
+    const cCashInHand = cTxs.find(t => isCashInHandTransaction(t))?.amount || 0;
 
     grandTotalReceive += subReceive;
     grandTotalRight += subRight;
@@ -400,7 +356,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
   // Include any other Cash In Hand logged in scoped transactions (e.g. general / Admin)
   scopedTransactions.forEach(t => {
-    if ((t.category || '').trim().toUpperCase() === 'CASH IN HAND') {
+    if (isCashInHandTransaction(t)) {
       const sName = (t.staffName || 'OTHER').trim().toUpperCase();
       if (!allCounterNames.includes(sName)) {
         grandTotalCashInHand += t.amount;
@@ -626,7 +582,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
               const rightItems = getCounterRightItems(counterTxs);
 
               const counterCashInHandTx = counterTxs.find(
-                t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+                t => isCashInHandTransaction(t)
               );
               const counterCashInHand = counterCashInHandTx ? counterCashInHandTx.amount : 0;
 
@@ -977,52 +933,15 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
         <div className="animate-fade-in">
           {/* Summary Header Title */}
           <h1 className="demo-sheet-title" style={{ color: '#1a1a9e', letterSpacing: '0.04em' }}>
-            SUNMMRY
+            SUMMARY
           </h1>
 
           {/* Date Range Subtitle */}
           <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
             <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#1a1a9e' }}>
-              {formatDDMMYYYY(summaryStartDate)} TO {formatDDMMYYYY(summaryEndDate)}
-            </div>
-
-            {/* Quick Range Presets */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
-                onClick={() => setPresetRange('today')}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
-                onClick={() => setPresetRange('yesterday')}
-              >
-                Yesterday
-              </button>
-              <button
-                type="button"
-                style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
-                onClick={() => setPresetRange('7days')}
-              >
-                7 Days
-              </button>
-              <button
-                type="button"
-                style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
-                onClick={() => setPresetRange('thisMonth')}
-              >
-                This Month
-              </button>
-              <button
-                type="button"
-                style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontWeight: 700, cursor: 'pointer' }}
-                onClick={() => setPresetRange('lastMonth')}
-              >
-                Last Month
-              </button>
+              {summaryStartDate === summaryEndDate
+                ? formatDDMMYYYY(summaryStartDate)
+                : `${formatDDMMYYYY(summaryStartDate)} TO ${formatDDMMYYYY(summaryEndDate)}`}
             </div>
 
             {/* Custom Date Pickers & Export Actions */}
@@ -1109,7 +1028,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             </div>
           </div>
 
-          {/* Grouped Payment Methods Summary - Simplified Clean CASH, RTGS, UPI & GRAND TOTAL */}
+          {/* Grouped Payment Methods Summary - Clean ACTUAL CASH, RTGS, UPI, TOTAL EXPENSE & GRAND TOTAL */}
           {(() => {
             const allReceiveTxs = scopedTransactions.filter(
               t => t && t.type === 'income' && !isRightSideEntry(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
@@ -1118,15 +1037,24 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             const receiveRtgsTxs = allReceiveTxs.filter(t => (t.paymentMethod || '').toString().toLowerCase() === 'rtgs');
             const receiveUpiTxs = allReceiveTxs.filter(t => (t.paymentMethod || '').toString().toLowerCase() === 'upi');
 
+            const allExpenseTxs = scopedTransactions.filter(
+              t => t && t.type === 'expense' && !isCashInHandTransaction(t) && !['ADMIN', 'ADMIN / OWNER', 'OWNER'].includes((t.staffName || '').trim().toUpperCase())
+            );
+            const expenseCashTxs = allExpenseTxs.filter(t => (t.paymentMethod || 'cash').toString().toLowerCase() === 'cash');
+
             const receiveCash = receiveCashTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveRtgs = receiveRtgsTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
             const receiveUpi = receiveUpiTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
-            const totalReceive = receiveCash + receiveRtgs + receiveUpi;
+            const expenseCash = expenseCashTxs.reduce((sum, t) => sum + (t?.amount || 0), 0);
+
+            // Actual Cash = Cash Daily Received − Cash Expense
+            const actualCash = receiveCash - expenseCash;
+            const grandTotal = actualCash + receiveRtgs + receiveUpi;
 
             return (
               <div style={{ maxWidth: '640px', margin: '0.85rem auto 1.25rem auto', padding: '0 0.5rem', textAlign: 'left' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', textAlign: 'left' }}>
-                  {/* CASH */}
+                  {/* ACTUAL CASH */}
                   <div
                     className="summary-method-row"
                     style={{
@@ -1145,16 +1073,18 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                     }}
                     onClick={() => handleOpenDrilldown('receive', 'cash')}
-                    title="Click to view all CASH transactions"
+                    title="Click to view all Cash Receive transactions"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: 900, color: '#0f172a' }}>CASH</span>
+                      <span style={{ fontWeight: 900, color: '#0f172a' }}>ACTUAL CASH</span>
                       <span style={{ fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#e2e8f0', color: '#475569', fontWeight: 800 }}>
                         {receiveCashTxs.length}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <span style={{ color: '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>{receiveCash.toLocaleString()}</span>
+                      <span style={{ color: actualCash < 0 ? '#dc2626' : '#16a34a', fontSize: '1.15rem', fontWeight: 900 }}>
+                        {actualCash.toLocaleString()}
+                      </span>
                       <span style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
                     </div>
                   </div>
@@ -1224,6 +1154,39 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       <span style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
                     </div>
                   </div>
+
+                  {/* TOTAL EXPENSE (Deducted from Cash) */}
+                  <div
+                    className="summary-method-row"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      textAlign: 'left',
+                      padding: '0.65rem 0.95rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      background: '#fff1f2',
+                      border: '1.5px solid #fecdd3',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                    onClick={() => handleOpenDrilldown('expense', 'cash')}
+                    title="Click to view all Cash Expense transactions"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontWeight: 900, color: '#9f1239' }}>TOTAL EXPENSE</span>
+                      <span style={{ fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '4px', background: '#ffe4e6', color: '#be123c', fontWeight: 800 }}>
+                        {expenseCashTxs.length}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: '#e11d48', fontSize: '1.15rem', fontWeight: 900 }}>{expenseCash.toLocaleString()}</span>
+                      <span style={{ color: '#fda4af', fontSize: '1rem' }}>›</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Green Grand Total Bar */}
@@ -1240,7 +1203,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   }}
                 >
                   <span style={{ fontSize: '1.15rem', fontWeight: 900, letterSpacing: '0.02em' }}>GRAND TOTAL</span>
-                  <span style={{ fontSize: '1.45rem', fontWeight: 900 }}>{totalReceive.toLocaleString()}</span>
+                  <span style={{ fontSize: '1.45rem', fontWeight: 900 }}>{grandTotal.toLocaleString()}</span>
                 </div>
               </div>
             );
@@ -1284,16 +1247,44 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   textAlign: 'left',
                 }}
               >
-                {/* Treasury Header (Clean with Set Initial Balance) */}
+                {/* Treasury Header (With 2-Column Toggle & Set Initial Balance) */}
                 <div
                   style={{
                     display: 'flex',
-                    justifyContent: 'flex-end',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: '0.65rem',
                     gap: '0.5rem',
+                    flexWrap: 'wrap',
                   }}
                 >
+                  {/* 2-Column Split View Checkbox/Toggle */}
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      color: showAdminSplitView ? '#1e40af' : '#475569',
+                      cursor: 'pointer',
+                      background: showAdminSplitView ? '#eff6ff' : '#f8fafc',
+                      border: showAdminSplitView ? '1.5px solid #93c5fd' : '1.5px solid #cbd5e1',
+                      borderRadius: '9999px',
+                      padding: '0.25rem 0.65rem',
+                      userSelect: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showAdminSplitView}
+                      onChange={e => setShowAdminSplitView(e.target.checked)}
+                      style={{ cursor: 'pointer', accentColor: '#2563eb' }}
+                    />
+                    <span>2-Column Split View</span>
+                  </label>
+
                   {/* Set Initial Balance Button */}
                   <button
                     type="button"
@@ -1319,7 +1310,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   </button>
                 </div>
 
-                {/* CASH IN HAND Stat Card (Drawer / Safe) */}
+                {/* CASH IN HAND Stat Card */}
                 <div style={{ maxWidth: '380px', margin: '0 auto' }}>
                   <div
                     style={{
@@ -1329,19 +1320,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       padding: '0.75rem 1rem',
                       display: 'flex',
                       flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '0.3rem',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      textAlign: 'center',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Banknote size={15} /> CASH IN HAND
-                      </span>
-                      <span style={{ fontSize: '0.675rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '0.12rem 0.4rem', borderRadius: '4px' }}>
-                        Drawer / Safe
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                        <Banknote size={16} /> CASH IN HAND
                       </span>
                     </div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534' }}>
+                    <div style={{ fontSize: '1.45rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534', textAlign: 'center' }}>
                       {formatCurrency(treasury.actualCash, config.currency)}
                     </div>
                   </div>
@@ -1352,187 +1343,372 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   const adminTxsInScope = treasury.adminTransactions.filter(
                     tx => (!summaryStartDate || tx.date >= summaryStartDate) && (!summaryEndDate || tx.date <= summaryEndDate)
                   );
-                  const adminIncomeInScope = adminTxsInScope
-                    .filter(tx => tx.type === 'income')
-                    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
-                  const adminExpenseInScope = adminTxsInScope
-                    .filter(tx => tx.type === 'expense')
-                    .reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                  const adminIncomeTxs = adminTxsInScope.filter(tx => tx.type === 'income');
+                  const adminExpenseTxs = adminTxsInScope.filter(tx => tx.type === 'expense');
+                  const adminIncomeInScope = adminIncomeTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                  const adminExpenseInScope = adminExpenseTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 
                   return (
-                    <div
-                      style={{
-                        marginTop: '1rem',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        padding: '0.65rem 0.85rem',
-                      }}
-                    >
+                    <>
                       <div
                         style={{
+                          marginTop: '1rem',
+                          background: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          padding: '0.65rem 0.85rem',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '0.5rem',
+                            flexWrap: 'wrap',
+                            gap: '0.4rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                              🏛️ Admin Transactions Log
+                            </span>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '9999px', background: '#e2e8f0', color: '#475569' }}>
+                              {adminTxsInScope.length}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              style={{
+                                fontSize: '0.8rem',
+                                fontWeight: 800,
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '6px',
+                                background: '#ecfdf5',
+                                border: '1.5px solid #86efac',
+                                cursor: 'pointer',
+                                color: '#166534',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onClick={() => openCounterModal('income', null, 'ADMIN')}
+                              title="Add Admin Deposit / Receive entry"
+                            >
+                              + Receive
+                            </button>
+                            <button
+                              type="button"
+                              style={{
+                                fontSize: '0.8rem',
+                                fontWeight: 800,
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '6px',
+                                background: '#fef2f2',
+                                border: '1.5px solid #fca5a5',
+                                cursor: 'pointer',
+                                color: '#991b1b',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onClick={() => openCounterModal('expense', null, 'ADMIN')}
+                              title="Add Admin Withdrawal / Expense entry"
+                            >
+                              + Expense
+                            </button>
+                          </div>
+                        </div>
+
+                        {adminTxsInScope.length === 0 ? (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                            No Admin personal withdrawals or deposit logs recorded yet.
+                          </div>
+                        ) : showAdminSplitView ? (
+                          /* 2-COLUMN SPLIT VIEW (Left: Receive, Right: Expense) */
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', marginTop: '0.4rem' }}>
+                            {/* Left Column: Receive / Income */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>RECEIVE / INCOME ({adminIncomeTxs.length})</span>
+                                <span>+{formatCurrency(adminIncomeInScope, config.currency)}</span>
+                              </div>
+                              {adminIncomeTxs.length === 0 ? (
+                                <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
+                                  No receive entries
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
+                                  {adminIncomeTxs.map(tx => {
+                                    const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                    return (
+                                      <div
+                                        key={tx.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          background: '#ffffff',
+                                          border: '1px solid #e2e8f0',
+                                          borderRadius: '6px',
+                                          padding: '0.35rem 0.55rem',
+                                          fontSize: '0.775rem',
+                                          gap: '0.35rem',
+                                          minWidth: 0,
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                                            {formatDDMMYYYY(tx.date)}
+                                          </span>
+                                          <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                            {tx.category || 'Deposit'}
+                                          </span>
+                                          {tx.note && (
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                              ({tx.note})
+                                            </span>
+                                          )}
+                                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
+                                            {methodUpper}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                          <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#16a34a', whiteSpace: 'nowrap' }}>
+                                            +{formatCurrency(tx.amount, config.currency)}
+                                          </span>
+                                          <div style={{ display: 'flex', gap: '0.15rem' }}>
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                              onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                              title="Edit Entry"
+                                            >
+                                              <Edit2 size={11} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '20px', height: '20px', color: '#dc2626' }}
+                                              onClick={() => {
+                                                if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                                  deleteTransaction(tx.id);
+                                                  showToast('Entry deleted', 'info');
+                                                }
+                                              }}
+                                              title="Delete Entry"
+                                            >
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right Column: Withdrawal / Expense */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#991b1b', background: '#fee2e2', border: '1px solid #fca5a5', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>WITHDRAWAL / EXPENSE ({adminExpenseTxs.length})</span>
+                                <span>−{formatCurrency(adminExpenseInScope, config.currency)}</span>
+                              </div>
+                              {adminExpenseTxs.length === 0 ? (
+                                <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
+                                  No withdrawal entries
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
+                                  {adminExpenseTxs.map(tx => {
+                                    const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                    return (
+                                      <div
+                                        key={tx.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          background: '#ffffff',
+                                          border: '1px solid #e2e8f0',
+                                          borderRadius: '6px',
+                                          padding: '0.35rem 0.55rem',
+                                          fontSize: '0.775rem',
+                                          gap: '0.35rem',
+                                          minWidth: 0,
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                                            {formatDDMMYYYY(tx.date)}
+                                          </span>
+                                          <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                            {tx.category || 'Withdrawal'}
+                                          </span>
+                                          {tx.note && (
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                              ({tx.note})
+                                            </span>
+                                          )}
+                                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
+                                            {methodUpper}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                          <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#dc2626', whiteSpace: 'nowrap' }}>
+                                            −{formatCurrency(tx.amount, config.currency)}
+                                          </span>
+                                          <div style={{ display: 'flex', gap: '0.15rem' }}>
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                              onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                              title="Edit Entry"
+                                            >
+                                              <Edit2 size={11} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '20px', height: '20px', color: '#dc2626' }}
+                                              onClick={() => {
+                                                if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                                  deleteTransaction(tx.id);
+                                                  showToast('Entry deleted', 'info');
+                                                }
+                                              }}
+                                              title="Delete Entry"
+                                            >
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* UNIFIED SINGLE-COLUMN VIEW (Default) */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
+                            {adminTxsInScope.map(tx => {
+                              const isIncome = tx.type === 'income';
+                              const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                              return (
+                                <div
+                                  key={tx.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: '#ffffff',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '7px',
+                                    padding: '0.45rem 0.75rem',
+                                    fontSize: '0.8rem',
+                                    gap: '0.5rem',
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  {/* Left: Date -> Head -> Remark -> Payment Method */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                    {/* 1. Date First */}
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
+                                      {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && tx.time ? ` • ${tx.time}` : ''}
+                                    </span>
+
+                                    {/* 2. Head (Category) */}
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                      {tx.category || (isIncome ? 'Deposit' : 'Withdrawal')}
+                                    </span>
+
+                                    {/* 3. Remark */}
+                                    {tx.note && (
+                                      <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                        ({tx.note})
+                                      </span>
+                                    )}
+
+                                    {/* 4. Payment Method */}
+                                    <span
+                                      style={{
+                                        fontSize: '0.675rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '4px',
+                                        background: methodUpper === 'CASH' ? '#f1f5f9' : '#e0e7ff',
+                                        color: methodUpper === 'CASH' ? '#334155' : '#3730a3',
+                                        border: methodUpper === 'CASH' ? '1px solid #cbd5e1' : '1px solid #c7d2fe',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {methodUpper}
+                                    </span>
+                                  </div>
+
+                                  {/* Right: Amount & Action Buttons */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: isIncome ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap' }}>
+                                      {isIncome ? '+' : '−'}{formatCurrency(tx.amount, config.currency)}
+                                    </span>
+
+                                    <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '22px', height: '22px', color: '#2563eb' }}
+                                        onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                        title="Edit Entry"
+                                      >
+                                        <Edit2 size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '22px', height: '22px', color: '#dc2626' }}
+                                        onClick={() => {
+                                          if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                            deleteTransaction(tx.id);
+                                            showToast('Entry deleted', 'info');
+                                          }
+                                        }}
+                                        title="Delete Entry"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Income and Withdrawal Summary: Income on Left Corner, Withdrawal on Right Corner */}
+                      <div
+                        style={{
+                          marginTop: '0.65rem',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          marginBottom: '0.5rem',
+                          gap: '0.6rem',
                           flexWrap: 'wrap',
-                          gap: '0.4rem',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-                            🏛️ Admin Transactions Log
-                          </span>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '9999px', background: '#e2e8f0', color: '#475569' }}>
-                            {adminTxsInScope.length}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          {adminIncomeInScope > 0 && (
-                            <span style={{ fontSize: '0.675rem', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                              Income: +{formatCurrency(adminIncomeInScope, config.currency)}
-                            </span>
-                          )}
-                          {adminExpenseInScope > 0 && (
-                            <span style={{ fontSize: '0.675rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                              Withdrawal: −{formatCurrency(adminExpenseInScope, config.currency)}
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            style={{
-                              fontSize: '0.675rem',
-                              fontWeight: 800,
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: '4px',
-                              background: '#ecfdf5',
-                              border: '1px solid #86efac',
-                              cursor: 'pointer',
-                              color: '#166534',
-                            }}
-                            onClick={() => openCounterModal('income', null, 'ADMIN')}
-                            title="Add Admin Deposit / Receive entry"
-                          >
-                            + Receive
-                          </button>
-                          <button
-                            type="button"
-                            style={{
-                              fontSize: '0.675rem',
-                              fontWeight: 800,
-                              padding: '0.15rem 0.5rem',
-                              borderRadius: '4px',
-                              background: '#fef2f2',
-                              border: '1px solid #fca5a5',
-                              cursor: 'pointer',
-                              color: '#991b1b',
-                            }}
-                            onClick={() => openCounterModal('expense', null, 'ADMIN')}
-                            title="Add Admin Withdrawal / Expense entry"
-                          >
-                            + Expense
-                          </button>
-                        </div>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1.5px solid #86efac', padding: '0.35rem 0.8rem', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                          Income: +{formatCurrency(adminIncomeInScope, config.currency)}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#991b1b', background: '#fee2e2', border: '1.5px solid #fca5a5', padding: '0.35rem 0.8rem', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                          Withdrawal: −{formatCurrency(adminExpenseInScope, config.currency)}
+                        </span>
                       </div>
-
-                      {adminTxsInScope.length === 0 ? (
-                        <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.4rem 0' }}>
-                          No Admin personal withdrawals or deposit logs recorded yet.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '200px', overflowY: 'auto' }}>
-                          {adminTxsInScope.map(tx => {
-                            const isIncome = tx.type === 'income';
-                            const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
-                            return (
-                              <div
-                                key={tx.id}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  background: '#ffffff',
-                                  border: '1px solid #e2e8f0',
-                                  borderRadius: '6px',
-                                  padding: '0.35rem 0.6rem',
-                                  fontSize: '0.75rem',
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                                  <span
-                                    style={{
-                                      fontSize: '0.625rem',
-                                      fontWeight: 900,
-                                      padding: '0.1rem 0.35rem',
-                                      borderRadius: '4px',
-                                      background: isIncome ? '#dcfce7' : '#fee2e2',
-                                      color: isIncome ? '#166534' : '#991b1b',
-                                    }}
-                                  >
-                                    {isIncome ? '+ RECEIVE' : '− EXPENSE'}
-                                  </span>
-
-                                  <span
-                                    style={{
-                                      fontSize: '0.625rem',
-                                      fontWeight: 800,
-                                      padding: '0.1rem 0.35rem',
-                                      borderRadius: '4px',
-                                      background: '#f1f5f9',
-                                      color: '#334155',
-                                    }}
-                                  >
-                                    {methodUpper}
-                                  </span>
-
-                                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <strong style={{ color: '#0f172a' }}>{tx.category || (isIncome ? 'Deposit' : 'Withdrawal')}</strong>
-                                    {tx.note && <span style={{ color: '#64748b', marginLeft: '0.35rem' }}>({tx.note})</span>}
-                                  </div>
-
-                                  <span style={{ fontSize: '0.675rem', color: '#94a3b8', marginLeft: '0.2rem' }}>
-                                    {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && tx.time ? ` • ${tx.time}` : ''}
-                                  </span>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                  <span style={{ fontWeight: 900, color: isIncome ? '#16a34a' : '#dc2626' }}>
-                                    {isIncome ? '+' : '−'}{formatCurrency(tx.amount, config.currency)}
-                                  </span>
-
-                                  <div style={{ display: 'flex', gap: '0.2rem' }}>
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                      onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
-                                      title="Edit Entry"
-                                    >
-                                      <Edit2 size={11} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '20px', height: '20px', color: '#dc2626' }}
-                                      onClick={() => {
-                                        if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
-                                          deleteTransaction(tx.id);
-                                          showToast('Entry deleted', 'info');
-                                        }
-                                      }}
-                                      title="Delete Entry"
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    </>
                   );
                 })()}
               </div>

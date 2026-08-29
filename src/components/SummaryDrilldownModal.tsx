@@ -14,7 +14,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { formatCurrency, formatDDMMYYYY, getTodayDateString, isRightSideEntry } from '../services/storageService';
+import { formatCurrency, formatDDMMYYYY, getTodayDateString, isRightSideEntry, isCashInHandTransaction } from '../services/storageService';
 
 interface SummaryDrilldownModalProps {
   isOpen: boolean;
@@ -85,29 +85,14 @@ export const SummaryDrilldownModal: React.FC<SummaryDrilldownModalProps> = ({
       // 2. Type (Receive vs Expense) & Payment Method
       const isRight = isRightSideEntry(t);
       const pMethod = (t.paymentMethod || 'cash').toString().toLowerCase();
-      const catUpper = (t.category || '').trim().toUpperCase();
 
       if (activeType === 'receive') {
         if (t.type !== 'income' || isRight) return false;
         if (activeMethod !== 'all' && pMethod !== activeMethod.toLowerCase()) return false;
       } else if (activeType === 'expense') {
-        if (activeMethod === 'cash') {
-          const isCashExp = t.type === 'expense' && pMethod === 'cash';
-          const isCashInHand = catUpper === 'CASH IN HAND';
-          if (!isCashExp && !isCashInHand) return false;
-        } else if (activeMethod === 'rtgs') {
-          const isRtgsExp = t.type === 'expense' && pMethod === 'rtgs';
-          const isBankRtgs = catUpper === 'BANK (RTGS)' || catUpper.includes('RTGS');
-          const isRtgsSale = t.type === 'income' && pMethod === 'rtgs';
-          if (!isRtgsExp && !isBankRtgs && !isRtgsSale) return false;
-        } else if (activeMethod === 'upi') {
-          const isUpiExp = t.type === 'expense' && pMethod === 'upi';
-          const isUpiBreakdown = catUpper.startsWith('UPI');
-          const isUpiSale = t.type === 'income' && pMethod === 'upi';
-          if (!isUpiExp && !isUpiBreakdown && !isUpiSale) return false;
-        } else {
-          if (!isRight && (t.type === 'income' && pMethod === 'cash')) return false;
-        }
+        // Exclude all Cash in Hand transactions from Expense totals and drilldown
+        if (t.type !== 'expense' || isCashInHandTransaction(t)) return false;
+        if (activeMethod !== 'all' && pMethod !== activeMethod.toLowerCase()) return false;
       } else {
         if (activeMethod !== 'all' && pMethod !== activeMethod.toLowerCase()) return false;
       }

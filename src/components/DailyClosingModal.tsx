@@ -9,7 +9,7 @@ import {
   Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { formatCurrency, isRightSideEntry } from '../services/storageService';
+import { formatCurrency, isRightSideEntry, isCashInHandTransaction } from '../services/storageService';
 
 const DENOMINATIONS = [
   { value: 500, label: '₹500 Note', isNote: true },
@@ -113,14 +113,14 @@ export const DailyClosingModal: React.FC = () => {
 
   // Outflows in Cash (excluding CASH IN HAND)
   const cashExpenses = counterTxs
-    .filter(t => t.type === 'expense' && (t.category || '').trim().toUpperCase() !== 'CASH IN HAND' && (t.paymentMethod || 'cash').toLowerCase() === 'cash')
+    .filter(t => t.type === 'expense' && !isCashInHandTransaction(t) && (t.paymentMethod || 'cash').toLowerCase() === 'cash')
     .reduce((sum, t) => sum + t.amount, 0);
 
   const expectedCounterCash = Math.max(0, cashIncomes - cashExpenses);
 
   // Check if existing Cash In Hand entry already exists for this counter & date
   const existingCashInHandTx = counterTxs.find(
-    t => (t.category || '').trim().toUpperCase() === 'CASH IN HAND'
+    t => isCashInHandTransaction(t)
   );
 
   // Reset or load saved denominations when modal opens or counter changes

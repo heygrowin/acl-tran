@@ -11,7 +11,6 @@ import { PWAInstallButton } from './PWAInstallButton';
 import {
   LayoutDashboard,
   HandCoins,
-  Lock,
   BarChart3,
   Settings,
   LogOut,
@@ -89,22 +88,6 @@ export const AdminScreen: React.FC = () => {
         >
           <HandCoins size={13} />
           <span>Loans</span>
-        </button>
-        <button
-          className={`nav-tab-btn ${adminTab === 'closing' ? 'active' : ''}`}
-          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
-          onClick={() => setAdminTab('closing')}
-        >
-          <Lock size={13} />
-          <span>Day Closings</span>
-        </button>
-        <button
-          className={`nav-tab-btn ${adminTab === 'reports' ? 'active' : ''}`}
-          style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem' }}
-          onClick={() => setAdminTab('reports')}
-        >
-          <BarChart3 size={13} />
-          <span>Analytics</span>
         </button>
         <button
           className={`nav-tab-btn ${adminTab === 'settings' ? 'active' : ''}`}

@@ -132,10 +132,41 @@ export function formatCurrency(amount: number, currency = '₹'): string {
   return `${isNeg ? '-' : ''}${currency}${formatted}`;
 }
 
+export function isCashInHandTransaction(t: Transaction | null | undefined): boolean {
+  if (!t) return false;
+  const cat = (t.category || '').trim().toUpperCase();
+  const note = (t.note || '').trim().toUpperCase();
+  
+  if (
+    cat === 'CASH IN HAND' ||
+    cat === 'CASH IN HANDS' ||
+    cat === 'CASH-IN-HAND' ||
+    cat === 'CASH_IN_HAND' ||
+    cat.includes('CASH IN HAND') ||
+    cat.includes('CASH IN HANDS') ||
+    cat.includes('CASH-IN-HAND')
+  ) {
+    return true;
+  }
+
+  if (
+    note.includes('PHYSICAL DRAWER COUNT') ||
+    note.includes('CASH IN HAND') ||
+    note.includes('CASH IN HANDS') ||
+    note.includes('PHYSICAL CASH HANDOVER') ||
+    note.includes('CLOSING HANDOVER')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function isRightSideEntry(t: Transaction): boolean {
   if (t.type === 'expense') return true;
+  if (isCashInHandTransaction(t)) return true;
   const cUpper = (t.category || '').trim().toUpperCase();
-  if (cUpper === 'CASH IN HAND' || cUpper === 'BANK (RTGS)') return true;
+  if (cUpper === 'BANK (RTGS)') return true;
   if (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS')) return true;
   return false;
 }
@@ -178,6 +209,45 @@ export class StorageService {
       localStorage.removeItem('acl_counter_transactions_v4');
       localStorage.removeItem('acl_counter_closings_v4');
       localStorage.removeItem('acl_counter_loans_v4');
+    } catch (e) {
+      // ignore
+    }
+
+    // Purge any synthetic test/demo loans or test transactions
+    try {
+      const rawLoans = localStorage.getItem(STORAGE_KEYS.LOANS);
+      if (rawLoans) {
+        const loans: LoanRecord[] = JSON.parse(rawLoans);
+        const cleanLoans = loans.filter(l => {
+          const name = (l.borrowerName || '').trim().toLowerCase();
+          const note = (l.notes || '').toLowerCase();
+          return !name.includes('ramesh') && !note.includes('emergency loan') && !note.includes('advance for raw material');
+        });
+        if (cleanLoans.length !== loans.length) {
+          localStorage.setItem(STORAGE_KEYS.LOANS, JSON.stringify(cleanLoans));
+        }
+      }
+
+      const rawTxs = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
+      if (rawTxs) {
+        const txs: Transaction[] = JSON.parse(rawTxs);
+        const cleanTxs = txs.filter(t => {
+          const note = (t.note || '').toLowerCase();
+          const cat = (t.category || '').toLowerCase();
+          const date = t.date || '';
+          return (
+            !note.includes('ramesh') &&
+            date !== '2026-08-18' &&
+            cat !== 'owner drawer cash withdrawal' &&
+            !note.includes('admin took cash from vault drawer') &&
+            !note.includes('emergency loan') &&
+            !note.includes('advance for raw material')
+          );
+        });
+        if (cleanTxs.length !== txs.length) {
+          localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(cleanTxs));
+        }
+      }
     } catch (e) {
       // ignore
     }
@@ -477,6 +547,8 @@ export class StorageService {
     let adminIncomeRtgs = 0;
     let adminIncomeUpi = 0;
 
+    let counterClosingCash = 0;
+
     const adminTransactions: Transaction[] = [];
 
     relevantTxs.forEach(t => {
@@ -489,6 +561,12 @@ export class StorageService {
 
       if (isAdmin) {
         adminTransactions.push(t);
+      }
+
+      // Counter cash handed over upon Day Closing or physical transfer into Admin drawer
+      const isCounterCashHandover = (cUpper === 'CASH IN HAND' || cUpper === 'CASH IN HAND (DRAWER/SAFE)') && pMethod === 'cash' && !isAdmin;
+      if (isCounterCashHandover) {
+        counterClosingCash += (t.amount || 0);
       }
 
       if (t.type === 'income') {
@@ -523,7 +601,8 @@ export class StorageService {
     const adminExpenseTotal = adminExpenseCash + adminExpenseRtgs + adminExpenseUpi;
     const adminIncomeTotal = adminIncomeCash + adminIncomeRtgs + adminIncomeUpi;
 
-    const actualCash = init.cash + receivedCash - expenseCash;
+    // Actual Cash in Admin drawer = Initial Baseline Cash + Day Closings/Handovers from Counters + Admin direct cash deposits - Admin direct cash withdrawals
+    const actualCash = init.cash + counterClosingCash + adminIncomeCash - adminExpenseCash;
     const actualRtgs = init.rtgs + receivedRtgs - expenseRtgs;
     const actualUpi = init.upi + receivedUpi - expenseUpi;
     const actualTotal = actualCash + actualRtgs + actualUpi;

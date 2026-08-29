@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import type { BusinessConfig, Transaction } from '../types';
 import { CounterManager } from './CounterManager';
@@ -24,7 +24,8 @@ import {
   XCircle,
   Copy,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  User
 } from 'lucide-react';
 import { storage, getTodayDateString } from '../services/storageService';
 import type { CloudConnectionResult } from '../services/firebaseService';
@@ -49,6 +50,11 @@ export const SettingsModal: React.FC = () => {
   } = useApp();
 
   const [formData, setFormData] = useState<BusinessConfig>(config);
+
+  useEffect(() => {
+    setFormData(config);
+  }, [config]);
+
   const [newIncomeCat, setNewIncomeCat] = useState('');
   const [newExpenseCat, setNewExpenseCat] = useState('');
   const [newUpiAcc, setNewUpiAcc] = useState('');
@@ -81,10 +87,26 @@ export const SettingsModal: React.FC = () => {
     showToast('Store settings updated successfully');
   };
 
+  const handleUpdateCounterPassword = (counterId: string, newPassword: string) => {
+    const updatedCounters = (formData.counters || []).map(c => {
+      if (c.id === counterId) {
+        return {
+          ...c,
+          password: newPassword.trim() || undefined,
+        };
+      }
+      return c;
+    });
+    setFormData({
+      ...formData,
+      counters: updatedCounters,
+    });
+  };
+
   const handleSavePasswords = (e: React.FormEvent) => {
     e.preventDefault();
     updateConfig(formData);
-    showToast('Passwords saved successfully');
+    showToast('All passwords & counter credentials saved successfully');
   };
 
   const handleAddIncomeCategory = () => {
@@ -728,10 +750,10 @@ export const SettingsModal: React.FC = () => {
 
         {/* 4. PASSWORDS & SECURITY */}
         {activeTab === 'passwords' && (
-          <form onSubmit={handleSavePasswords} style={{ maxWidth: '440px' }}>
+          <form onSubmit={handleSavePasswords} style={{ maxWidth: '520px' }}>
             <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
               <div className="form-group" style={{ marginBottom: '0.65rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem' }}>Admin / Owner Password:</label>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Admin / Owner Password:</label>
                 <input
                   type="text"
                   className="form-input font-mono"
@@ -744,7 +766,7 @@ export const SettingsModal: React.FC = () => {
               </div>
 
               <div className="form-group" style={{ marginBottom: '0.25rem' }}>
-                <label className="form-label" style={{ fontSize: '0.75rem' }}>Counter Staff Default Password:</label>
+                <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Counter Staff Default Password (Fallback):</label>
                 <input
                   type="text"
                   className="form-input font-mono"
@@ -753,7 +775,73 @@ export const SettingsModal: React.FC = () => {
                   onChange={e => setFormData({ ...formData, employeePassword: e.target.value })}
                   required
                 />
-                <span style={{ fontSize: '0.675rem', color: '#64748b' }}>Default: <code>P@counter</code></span>
+                <span style={{ fontSize: '0.675rem', color: '#64748b' }}>Used if no individual counter password is set. Default: <code>P@counter</code></span>
+              </div>
+            </div>
+
+            {/* Individual Counter Passwords Section */}
+            <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                <Users size={14} style={{ color: '#2563eb' }} />
+                <label className="form-label" style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Individual Counter Passwords ({formData.counters?.length || 0}):
+                </label>
+              </div>
+              <p style={{ fontSize: '0.68rem', color: '#64748b', marginBottom: '0.6rem' }}>
+                Set separate passwords for each counter. Leave blank to inherit default password (<code>{formData.employeePassword}</code>).
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {(formData.counters || []).map((c) => {
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        padding: '0.4rem 0.6rem',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: '100px' }}>
+                        <div
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '4px',
+                            background: c.bg || '#eff6ff',
+                            color: c.color || '#2563eb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          <User size={11} />
+                        </div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
+                          {c.name}
+                        </span>
+                      </div>
+
+                      <div style={{ flex: 1, maxWidth: '220px' }}>
+                        <input
+                          type="text"
+                          className="form-input font-mono"
+                          style={{ fontSize: '0.8rem', padding: '0.3rem 0.55rem' }}
+                          placeholder={`Default (${formData.employeePassword})`}
+                          value={c.password || ''}
+                          onChange={e => handleUpdateCounterPassword(c.id, e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -763,7 +851,7 @@ export const SettingsModal: React.FC = () => {
               style={{ padding: '0.45rem 1rem', fontSize: '0.775rem', background: '#2563eb', boxShadow: 'none' }}
             >
               <Check size={14} />
-              <span>Update Passwords</span>
+              <span>Update All Passwords</span>
             </button>
           </form>
         )}

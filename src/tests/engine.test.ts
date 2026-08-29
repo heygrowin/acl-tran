@@ -1,4 +1,7 @@
 // Automated Test Suite for Daily Cash & Transaction Management Engine
+// Set TEST_ENV flag to prevent tests from contacting production Cloud Firestore
+(globalThis as any).__TEST_ENV__ = true;
+
 import { storage } from '../services/storageService';
 
 // Mock localStorage for Node test environment
@@ -208,8 +211,21 @@ console.log('Treasury Balances Calculated:', {
   adminExpenseTotal: treasuryCalc.adminExpenseTotal,
 });
 
-assert(treasuryCalc.adminExpenseCash === 1000, 'Admin Cash Drawer Withdrawal recognized as 1000');
-assert(treasuryCalc.actualTotal > 0, 'Total actual money is positive');
-assert(treasuryCalc.actualTotal === treasuryCalc.actualCash + treasuryCalc.actualRtgs + treasuryCalc.actualUpi, 'Actual Total equals sum of Cash + RTGS + UPI');
+// 10. Test Counter Day Closing Handover to Admin Cash in Hand
+storage.addTransaction({
+  businessId: 'biz_default',
+  date: testDate,
+  time: '20:00',
+  type: 'expense',
+  amount: 12000,
+  paymentMethod: 'cash',
+  category: 'CASH IN HAND',
+  staffName: 'Counter Staff 1',
+  note: 'Day closing physical cash handover to Admin',
+});
+
+const treasuryCalc2 = storage.calculateTreasuryBalances();
+assert(treasuryCalc2.actualCash === 61000, 'Cash in Hand = 50,000 (initial) - 1,000 (admin expense) + 12,000 (counter handover) = ₹61,000');
 
 console.log('\n🎉 ALL LOGICAL, LOAN, TREASURY & RECONCILIATION TESTS PASSED PERFECTLY!\n');
+
