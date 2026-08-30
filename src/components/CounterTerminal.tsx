@@ -204,17 +204,6 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
           onClose();
         }
       }
-      // Quick Payment Method switching: Alt+1/Alt+C = Cash, Alt+2/Alt+R/Alt+B = RTGS, Alt+3/Alt+U = UPI
-      if (e.altKey && (e.key === '1' || e.key === 'c' || e.key === 'C')) {
-        e.preventDefault();
-        handlePaymentMethodSelect('cash');
-      } else if (e.altKey && (e.key === '2' || e.key === 'r' || e.key === 'R' || e.key === 'b' || e.key === 'B')) {
-        e.preventDefault();
-        handlePaymentMethodSelect('rtgs');
-      } else if (e.altKey && (e.key === '3' || e.key === 'u' || e.key === 'U')) {
-        e.preventDefault();
-        handlePaymentMethodSelect('upi');
-      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -987,9 +976,9 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               }}
             >
               {[
-                { id: 'cash', label: 'CASH (Alt+1)' },
-                { id: 'rtgs', label: 'RTGS (Alt+2)' },
-                { id: 'upi', label: 'UPI (Alt+3)' },
+                { id: 'cash', label: 'CASH' },
+                { id: 'rtgs', label: 'RTGS' },
+                { id: 'upi', label: 'UPI' },
               ].map(m => {
                 const isSelected = paymentMethod.toLowerCase() === m.id.toLowerCase();
                 return (
