@@ -197,15 +197,33 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const autoDetectPaymentMethodFromHead = (headText: string): string | null => {
+    if (!headText) return null;
+    const upper = headText.toUpperCase();
+    if (upper.includes('RTGS') || upper.includes('BANK') || upper.includes('NEFT')) {
+      return 'rtgs';
+    }
+    if (
+      upper.includes('UPI') ||
+      upper.includes('GPAY') ||
+      upper.includes('GOOGLEPAY') ||
+      upper.includes('PHONEPE') ||
+      upper.includes('PAYTM') ||
+      upper.includes('QR')
+    ) {
+      return 'upi';
+    }
+    if (upper.includes('CASH IN HAND') || upper.includes('CASH')) {
+      return 'cash';
+    }
+    return null;
+  };
+
   const handleHeadChipClick = (headName: string) => {
     setCategory(headName);
-    const upper = headName.toUpperCase();
-    if (upper.includes('CASH IN HAND')) {
-      setPaymentMethod('cash');
-    } else if (upper.includes('RTGS') || upper.includes('BANK')) {
-      setPaymentMethod('rtgs');
-    } else if (upper.startsWith('UPI')) {
-      setPaymentMethod('upi');
+    const detected = autoDetectPaymentMethodFromHead(headName);
+    if (detected) {
+      setPaymentMethod(detected);
     }
     setIsCategoryDropdownOpen(false);
     // Move focus to amount if empty
@@ -216,14 +234,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
 
   const handlePaymentMethodSelect = (method: string) => {
     setPaymentMethod(method);
-    if (method === 'cash') {
-      setIsAccountDropdownOpen(false);
-    } else {
-      setTimeout(() => {
-        accountInputRef.current?.focus();
-        setIsAccountDropdownOpen(true);
-      }, 50);
-    }
+    setIsAccountDropdownOpen(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -661,7 +672,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             })}
           </div>
 
-          {/* 4. Form Fields: Head, REMARK, AMOUNT (Pill label on left + Stadium input on right) */}
+          {/* 4. Form Fields: Head, AMOUNT, REMARK (Pill label on left + Stadium input on right) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '0.85rem' }}>
             {/* ROW 1: Head: */}
             <div ref={categoryContainerRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -705,7 +716,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   }
                   value={category}
                   onChange={e => {
-                    setCategory(e.target.value);
+                    const val = e.target.value;
+                    setCategory(val);
+                    const detected = autoDetectPaymentMethodFromHead(val);
+                    if (detected) {
+                      setPaymentMethod(detected);
+                    }
                     setIsCategoryDropdownOpen(true);
                   }}
                   onFocus={() => setIsCategoryDropdownOpen(true)}
@@ -753,47 +769,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               </div>
             </div>
 
-            {/* ROW 2: REMARK */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div
-                style={{
-                  background: themeColor,
-                  color: '#000000',
-                  fontWeight: 900,
-                  fontSize: '0.78rem',
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '9999px',
-                  width: '74px',
-                  textAlign: 'center',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                  flexShrink: 0,
-                }}
-              >
-                REMARK
-              </div>
-
-              <input
-                ref={remarkInputRef}
-                type="text"
-                style={{
-                  width: '100%',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '9999px',
-                  border: '1.8px solid #000000',
-                  background: '#ffffff',
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: '#000000',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-                placeholder="Remark / Description / Phone (Optional)"
-                value={note}
-                onChange={e => setNote(e.target.value)}
-              />
-            </div>
-
-            {/* ROW 3: AMOUNT */}
+            {/* ROW 2: AMOUNT (Directly below Head) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <div
                 style={{
@@ -849,6 +825,46 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   required
                 />
               </div>
+            </div>
+
+            {/* ROW 3: REMARK */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div
+                style={{
+                  background: themeColor,
+                  color: '#000000',
+                  fontWeight: 900,
+                  fontSize: '0.78rem',
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '9999px',
+                  width: '74px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  flexShrink: 0,
+                }}
+              >
+                REMARK
+              </div>
+
+              <input
+                ref={remarkInputRef}
+                type="text"
+                style={{
+                  width: '100%',
+                  padding: '0.45rem 1rem',
+                  borderRadius: '9999px',
+                  border: '1.8px solid #000000',
+                  background: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                placeholder="Remark / Description / Phone (Optional)"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+              />
             </div>
           </div>
 
@@ -934,10 +950,10 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                       placeholder={paymentMethod === 'rtgs' ? 'Bank A/c (e.g. ansh@iob, SBI 4012)' : 'Account / UPI (e.g. ansh@iob, @IOB)'}
                       value={upiAccount}
                       onChange={e => {
-                        setUpiAccount(e.target.value);
-                        setIsAccountDropdownOpen(true);
+                        const val = e.target.value;
+                        setUpiAccount(val);
+                        setIsAccountDropdownOpen(val.trim().length > 0);
                       }}
-                      onFocus={() => setIsAccountDropdownOpen(true)}
                     />
 
                     <button
