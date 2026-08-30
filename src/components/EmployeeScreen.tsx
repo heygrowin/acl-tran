@@ -3,10 +3,12 @@ import { useApp } from '../context/AppContext';
 import { TransactionLedger } from './TransactionLedger';
 import { LoanManager } from './LoanManager';
 import { PWAInstallButton } from './PWAInstallButton';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import {
   LayoutDashboard,
   HandCoins,
   LogOut,
+  Keyboard,
 } from 'lucide-react';
 
 export const EmployeeScreen: React.FC = () => {
@@ -19,6 +21,7 @@ export const EmployeeScreen: React.FC = () => {
   } = useApp();
 
   const [employeeTab, setEmployeeTab] = useState<'sheet' | 'loans'>('sheet');
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const pendingLoansCount = loans.filter(l => l.pendingAmount > 0).length;
 
   return (
@@ -99,6 +102,28 @@ export const EmployeeScreen: React.FC = () => {
             </button>
           </div>
 
+          {/* Shortcuts Button */}
+          <button
+            type="button"
+            className="nav-tab-btn"
+            style={{
+              fontSize: '0.725rem',
+              padding: '0.25rem 0.6rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              color: '#1e293b',
+              cursor: 'pointer',
+            }}
+            onClick={() => setIsShortcutsModalOpen(true)}
+            title="Keyboard Shortcuts & Workflow Guide"
+          >
+            <Keyboard size={13} />
+            <span>Shortcuts</span>
+          </button>
+
           <PWAInstallButton />
 
           {/* Switch Account Button */}
@@ -131,6 +156,12 @@ export const EmployeeScreen: React.FC = () => {
       ) : (
         <TransactionLedger initialMode="sheet" />
       )}
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
     </div>
   );
 };

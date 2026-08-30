@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeroStats } from './HeroStats';
 import { TransactionLedger } from './TransactionLedger';
@@ -8,6 +8,7 @@ import { ReportsAnalytics } from './ReportsAnalytics';
 import { SettingsModal } from './SettingsModal';
 import { DayClosingsLog } from './DayClosingsLog';
 import { PWAInstallButton } from './PWAInstallButton';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import {
   LayoutDashboard,
   HandCoins,
@@ -15,6 +16,7 @@ import {
   Settings,
   LogOut,
   Layers,
+  Keyboard,
 } from 'lucide-react';
 
 export const AdminScreen: React.FC = () => {
@@ -23,6 +25,8 @@ export const AdminScreen: React.FC = () => {
     setAdminTab,
     logoutToLanding,
   } = useApp();
+
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
@@ -97,6 +101,28 @@ export const AdminScreen: React.FC = () => {
           <Settings size={13} />
           <span>Settings</span>
         </button>
+
+        {/* Shortcuts button right next to Settings */}
+        <button
+          type="button"
+          className="nav-tab-btn"
+          style={{
+            fontSize: '0.725rem',
+            padding: '0.25rem 0.6rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            color: '#1e293b',
+            cursor: 'pointer',
+          }}
+          onClick={() => setIsShortcutsModalOpen(true)}
+          title="Keyboard Shortcuts & Workflow Guide"
+        >
+          <Keyboard size={13} />
+          <span>Shortcuts</span>
+        </button>
       </div>
 
       {/* Admin Tab Content */}
@@ -130,6 +156,12 @@ export const AdminScreen: React.FC = () => {
 
         {adminTab === 'settings' && <SettingsModal />}
       </div>
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
     </div>
   );
 };

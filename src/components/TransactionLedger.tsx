@@ -214,6 +214,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   // Global Keyboard Navigation (r = Add Receive, e = Add Expense, Left/Right = Date navigation, t = Today)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Never intercept browser system keys (Cmd/Ctrl/Alt combinations e.g. Cmd+R / Ctrl+R refresh)
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (
         target &&
