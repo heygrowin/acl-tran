@@ -13,6 +13,8 @@ import {
   Plus,
   Trash2,
   Check,
+  X,
+  Edit2,
   UserCheck,
   AlertTriangle,
   FileSpreadsheet,
@@ -34,6 +36,7 @@ export const SettingsModal: React.FC = () => {
   const {
     config,
     updateConfig,
+    updateCategory,
     refreshData,
     showToast,
     transactions,
@@ -58,6 +61,7 @@ export const SettingsModal: React.FC = () => {
   const [newIncomeCat, setNewIncomeCat] = useState('');
   const [newExpenseCat, setNewExpenseCat] = useState('');
   const [newUpiAcc, setNewUpiAcc] = useState('');
+  const [editingCat, setEditingCat] = useState<{ type: 'income' | 'expense'; oldName: string; newName: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'counters' | 'general' | 'categories' | 'passwords' | 'storage'>('counters');
 
   // Cloud Diagnostics state
@@ -119,6 +123,40 @@ export const SettingsModal: React.FC = () => {
     setFormData(updated);
     updateConfig(updated);
     setNewIncomeCat('');
+  };
+
+  const handleStartEditCategory = (type: 'income' | 'expense', name: string) => {
+    setEditingCat({ type, oldName: name, newName: name });
+  };
+
+  const handleSaveEditCategory = () => {
+    if (!editingCat || !editingCat.newName.trim()) return;
+    const { type, oldName, newName } = editingCat;
+    const cleanNew = newName.trim();
+    if (cleanNew === oldName) {
+      setEditingCat(null);
+      return;
+    }
+
+    if (type === 'income') {
+      const updatedIncome = formData.incomeCategories.map(c => (c === oldName ? cleanNew : c));
+      const updated = { ...formData, incomeCategories: updatedIncome };
+      setFormData(updated);
+      updateConfig(updated);
+      updateCategory('income', oldName, cleanNew);
+    } else {
+      const updatedExpense = formData.expenseCategories.map(c => (c === oldName ? cleanNew : c));
+      const updated = { ...formData, expenseCategories: updatedExpense };
+      setFormData(updated);
+      updateConfig(updated);
+      updateCategory('expense', oldName, cleanNew);
+    }
+    setEditingCat(null);
+    showToast(`Renamed "${oldName}" to "${cleanNew}"`);
+  };
+
+  const handleCancelEditCategory = () => {
+    setEditingCat(null);
   };
 
   const handleRemoveIncomeCategory = (cat: string) => {
@@ -607,30 +645,103 @@ export const SettingsModal: React.FC = () => {
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', maxHeight: '180px', overflowY: 'auto' }}>
-                  {formData.incomeCategories.map(cat => (
-                    <span
-                      key={cat}
-                      className="badge badge-income"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.2rem 0.45rem',
-                        fontSize: '0.7rem',
-                        borderRadius: '6px',
-                        background: '#ffffff',
-                      }}
-                    >
-                      {cat}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveIncomeCategory(cat)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
+                  {formData.incomeCategories.map(cat => {
+                    if (editingCat?.oldName === cat && editingCat?.type === 'income') {
+                      return (
+                        <div
+                          key={cat}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                            padding: '0.15rem 0.35rem',
+                            borderRadius: '6px',
+                            background: '#dcfce7',
+                            border: '1.5px solid #16a34a',
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={editingCat.newName}
+                            onChange={e => setEditingCat({ ...editingCat, newName: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveEditCategory();
+                              if (e.key === 'Escape') handleCancelEditCategory();
+                            }}
+                            autoFocus
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.3rem',
+                              border: '1px solid #86efac',
+                              borderRadius: '4px',
+                              outline: 'none',
+                              width: '110px',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveEditCategory}
+                            title="Save Rename"
+                            style={{ background: '#16a34a', border: 'none', color: '#fff', borderRadius: '4px', padding: '0.15rem 0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Check size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditCategory}
+                            title="Cancel"
+                            style={{ background: '#cbd5e1', border: 'none', color: '#334155', borderRadius: '4px', padding: '0.15rem 0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <span
+                        key={cat}
+                        className="badge badge-income"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.45rem',
+                          fontSize: '0.7rem',
+                          borderRadius: '6px',
+                          background: '#ffffff',
+                          border: '1px solid #bbf7d0',
+                        }}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        <span style={{ fontWeight: 700 }}>{cat}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditCategory('income', cat)}
+                          title="Rename / Edit"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#15803d',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: 0.75,
+                          }}
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveIncomeCategory(cat)}
+                          title="Delete Category"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -662,30 +773,103 @@ export const SettingsModal: React.FC = () => {
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', maxHeight: '180px', overflowY: 'auto' }}>
-                  {formData.expenseCategories.map(cat => (
-                    <span
-                      key={cat}
-                      className="badge badge-expense"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.2rem 0.45rem',
-                        fontSize: '0.7rem',
-                        borderRadius: '6px',
-                        background: '#ffffff',
-                      }}
-                    >
-                      {cat}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExpenseCategory(cat)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
+                  {formData.expenseCategories.map(cat => {
+                    if (editingCat?.oldName === cat && editingCat?.type === 'expense') {
+                      return (
+                        <div
+                          key={cat}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                            padding: '0.15rem 0.35rem',
+                            borderRadius: '6px',
+                            background: '#fee2e2',
+                            border: '1.5px solid #dc2626',
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={editingCat.newName}
+                            onChange={e => setEditingCat({ ...editingCat, newName: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveEditCategory();
+                              if (e.key === 'Escape') handleCancelEditCategory();
+                            }}
+                            autoFocus
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.1rem 0.3rem',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '4px',
+                              outline: 'none',
+                              width: '110px',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveEditCategory}
+                            title="Save Rename"
+                            style={{ background: '#dc2626', border: 'none', color: '#fff', borderRadius: '4px', padding: '0.15rem 0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Check size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEditCategory}
+                            title="Cancel"
+                            style={{ background: '#cbd5e1', border: 'none', color: '#334155', borderRadius: '4px', padding: '0.15rem 0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <span
+                        key={cat}
+                        className="badge badge-expense"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.2rem 0.45rem',
+                          fontSize: '0.7rem',
+                          borderRadius: '6px',
+                          background: '#ffffff',
+                          border: '1px solid #fecaca',
+                        }}
                       >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                        <span style={{ fontWeight: 700 }}>{cat}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditCategory('expense', cat)}
+                          title="Rename / Edit"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#b91c1c',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: 0.75,
+                          }}
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExpenseCategory(cat)}
+                          title="Delete Category"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: 0, fontWeight: 800, fontSize: '0.85rem', lineHeight: 1 }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
 

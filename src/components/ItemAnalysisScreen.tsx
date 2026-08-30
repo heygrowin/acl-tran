@@ -9,6 +9,8 @@ import {
   Plus,
   Edit2,
   Trash2,
+  X,
+  Sparkles,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatCurrency, formatDDMMYYYY, getTodayDateString } from '../services/storageService';
@@ -29,7 +31,7 @@ export const ItemAnalysisScreen: React.FC = () => {
   const [selectedPreset, setSelectedPreset] = useState<PresetRange>('thisMonth');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [activeCategory, setActiveCategory] = useState<string>(selectedAnalysisCategory || 'TEA');
+  const [activeCategory, setActiveCategory] = useState<string>(selectedAnalysisCategory || '');
   const [filterType, setFilterType] = useState<'all' | 'expense' | 'income'>('all');
   const [categorySearch, setCategorySearch] = useState<string>('');
   const [selectedCashier, setSelectedCashier] = useState<string>('all');
@@ -114,39 +116,30 @@ export const ItemAnalysisScreen: React.FC = () => {
       }
     });
 
-    // Sort primarily by frequency (count descending), then by total spend descending
     return Array.from(map.values()).sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
       return b.total - a.total;
     });
   }, [transactions]);
 
-  // Filtered categories for chips based on search and frequency
+  // Filtered categories for chips based on active search (only shown when typing)
   const filteredCategoryChips = useMemo(() => {
-    let list = categoryStatsList.filter(c => {
-      if (filterType === 'expense' && c.type !== 'expense') return false;
-      if (filterType === 'income' && c.type !== 'income') return false;
-      if (categorySearch.trim()) {
-        return c.name.toLowerCase().includes(categorySearch.trim().toLowerCase());
-      }
-      return true;
-    });
-
-    // If no search is entered, show only high frequency items (items with activity or top 12)
-    if (!categorySearch.trim()) {
-      const activeItems = list.filter(c => c.count > 0);
-      if (activeItems.length > 0) {
-        list = activeItems.slice(0, 12);
-      } else {
-        list = list.slice(0, 8);
-      }
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) {
+      return [];
     }
 
-    return list;
+    return categoryStatsList.filter(c => {
+      if (filterType === 'expense' && c.type !== 'expense') return false;
+      if (filterType === 'income' && c.type !== 'income') return false;
+      return c.name.toLowerCase().includes(q);
+    });
   }, [categoryStatsList, filterType, categorySearch]);
 
   // 2. Transactions Matched for the Selected Category & Filter Scope
   const activeCategoryTxs = useMemo(() => {
+    if (!activeCategory.trim()) return [];
+
     const targetCat = activeCategory.trim().toUpperCase();
 
     return transactions.filter(t => {
@@ -186,11 +179,11 @@ export const ItemAnalysisScreen: React.FC = () => {
 
       // Search
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        const matchNote = (t.note || '').toLowerCase().includes(q);
-        const matchStaff = (t.staffName || '').toLowerCase().includes(q);
-        const matchAccount = (t.paymentAccount || '').toLowerCase().includes(q);
-        const matchAmt = (t.amount || 0).toString().includes(q);
+        const sq = searchTerm.toLowerCase();
+        const matchNote = (t.note || '').toLowerCase().includes(sq);
+        const matchStaff = (t.staffName || '').toLowerCase().includes(sq);
+        const matchAccount = (t.paymentAccount || '').toLowerCase().includes(sq);
+        const matchAmt = (t.amount || 0).toString().includes(sq);
         if (!matchNote && !matchStaff && !matchAccount && !matchAmt) return false;
       }
 
@@ -222,7 +215,7 @@ export const ItemAnalysisScreen: React.FC = () => {
 
   // Export to Excel / CSV
   const handleExport = (format: 'excel' | 'csv') => {
-    if (activeCategoryTxs.length === 0) {
+    if (!activeCategory || activeCategoryTxs.length === 0) {
       showToast('No records to export', 'info');
       return;
     }
@@ -255,209 +248,331 @@ export const ItemAnalysisScreen: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
-      {/* Top Header & Clean Date Range Controls */}
+      {/* Top Header & Clean Responsive Date Range Controls */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: 'column',
+          gap: '0.65rem',
           marginBottom: '0.75rem',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
           background: '#ffffff',
-          padding: '0.65rem 0.85rem',
+          padding: '0.75rem 0.95rem',
           borderRadius: '10px',
           border: '1px solid #e2e8f0',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
-            Item Analysis
-          </h1>
-        </div>
-
-        {/* Date Range Presets */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.2rem', borderRadius: '8px', gap: '0.15rem' }}>
-            {(['today', 'yesterday', '7days', 'thisMonth', 'lastMonth', 'all', 'custom'] as const).map(p => (
-              <button
-                key={p}
-                type="button"
-                className={`nav-tab-btn ${selectedPreset === p ? 'active' : ''}`}
-                style={{ fontSize: '0.725rem', padding: '0.25rem 0.6rem', fontWeight: 700 }}
-                onClick={() => setSelectedPreset(p)}
-              >
-                {p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === '7days' ? '7 Days' : p === 'thisMonth' ? 'This Month' : p === 'lastMonth' ? 'Last Month' : p === 'all' ? 'All' : 'Custom'}
-              </button>
-            ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h1 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
+              📊 Item Analysis
+            </h1>
           </div>
 
-          {selectedPreset === 'custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#ffffff', padding: '0.25rem 0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-              <Calendar size={13} style={{ color: '#64748b' }} />
-              <input
-                type="date"
-                style={{ border: 'none', background: 'transparent', fontSize: '0.75rem', fontWeight: 700, outline: 'none' }}
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-              <span style={{ fontSize: '0.725rem', color: '#94a3b8' }}>to</span>
-              <input
-                type="date"
-                style={{ border: 'none', background: 'transparent', fontSize: '0.75rem', fontWeight: 700, outline: 'none' }}
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-              />
+          {activeCategory && (
+            <div style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span>Viewing Item:</span>
+              <strong style={{ color: '#0f172a', background: '#e2e8f0', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                {activeCategory}
+              </strong>
+              <button
+                type="button"
+                onClick={() => setActiveCategory('')}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, marginLeft: '0.2rem' }}
+                title="Clear selected item"
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
         </div>
-      </div>
 
-      {/* CATEGORY SELECTOR & QUICK ITEM CHIPS WITH SEARCH */}
-      <div
-        style={{
-          background: '#ffffff',
-          borderRadius: '10px',
-          border: '1px solid #e2e8f0',
-          padding: '0.75rem 0.85rem',
-          marginBottom: '0.85rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.55rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-              Select Item / Category:
-            </span>
-            <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', gap: '0.15rem' }}>
-              {(['all', 'expense', 'income'] as const).map(t => (
+        {/* Responsive Date Range Presets: 2 Clean Rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.2rem', borderRadius: '8px', gap: '0.2rem', flexWrap: 'wrap' }}>
+              {(['today', 'yesterday', '7days', 'thisMonth'] as const).map(p => (
                 <button
-                  key={t}
+                  key={p}
                   type="button"
-                  className={`nav-tab-btn ${filterType === t ? 'active' : ''}`}
-                  style={{ fontSize: '0.675rem', padding: '0.15rem 0.5rem', fontWeight: 700 }}
-                  onClick={() => setFilterType(t)}
+                  className={`nav-tab-btn ${selectedPreset === p ? 'active' : ''}`}
+                  style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem', fontWeight: 800 }}
+                  onClick={() => setSelectedPreset(p)}
                 >
-                  {t === 'all' ? 'All Items' : t === 'expense' ? 'Expenses' : 'Revenue'}
+                  {p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === '7days' ? '7 Days' : 'This Month'}
                 </button>
               ))}
             </div>
 
-            {/* Category Search Input */}
-            <div style={{ position: 'relative', width: '180px' }}>
-              <Search size={11} style={{ position: 'absolute', left: '7px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input
-                type="text"
-                placeholder="Search item / category..."
-                style={{
-                  width: '100%',
-                  padding: '0.2rem 0.4rem 0.2rem 1.5rem',
-                  fontSize: '0.725rem',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-                value={categorySearch}
-                onChange={e => setCategorySearch(e.target.value)}
-              />
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.2rem', borderRadius: '8px', gap: '0.2rem', flexWrap: 'wrap' }}>
+              {(['lastMonth', 'all', 'custom'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`nav-tab-btn ${selectedPreset === p ? 'active' : ''}`}
+                  style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem', fontWeight: 800 }}
+                  onClick={() => setSelectedPreset(p)}
+                >
+                  {p === 'lastMonth' ? 'Last Month' : p === 'all' ? 'All Time' : 'Custom Dates'}
+                </button>
+              ))}
             </div>
+
+            {selectedPreset === 'custom' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: '#ffffff', padding: '0.3rem 0.55rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                <Calendar size={14} style={{ color: '#64748b' }} />
+                <input
+                  type="date"
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>to</span>
+                <input
+                  type="date"
+                  style={{ border: 'none', background: 'transparent', fontSize: '0.78rem', fontWeight: 700, outline: 'none' }}
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* FULL WIDTH SEARCH BOX & ITEM FILTER */}
+      <div
+        style={{
+          background: '#ffffff',
+          borderRadius: '10px',
+          border: '1px solid #e2e8f0',
+          padding: '0.85rem 1rem',
+          marginBottom: '0.85rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+              Search Any Item / Category:
+            </span>
           </div>
 
-          <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-            Active: <strong style={{ color: '#0f172a' }}>{activeCategory}</strong>
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '0.15rem', borderRadius: '6px', gap: '0.15rem' }}>
+            {(['all', 'expense', 'income'] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                className={`nav-tab-btn ${filterType === t ? 'active' : ''}`}
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', fontWeight: 700 }}
+                onClick={() => setFilterType(t)}
+              >
+                {t === 'all' ? 'All Types' : t === 'expense' ? 'Expenses' : 'Revenue'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* High Frequency Category Chips */}
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', padding: '0.1rem 0' }}>
-          {filteredCategoryChips.map(c => {
-            const isSelected = activeCategory.toUpperCase() === c.name;
-            return (
+        {/* Big Full-Width Search Input */}
+        <div style={{ position: 'relative', width: '100%', marginBottom: '0.5rem' }}>
+          <Search
+            size={18}
+            style={{
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#64748b',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Type item name to search (e.g. TEA, FOOD, PARSAL, LAB WORK, PETROL)..."
+            style={{
+              width: '100%',
+              height: '44px',
+              padding: '0.55rem 2.5rem 0.55rem 2.6rem',
+              fontSize: '0.92rem',
+              fontWeight: 700,
+              borderRadius: '8px',
+              border: '2px solid #0f172a',
+              background: '#ffffff',
+              color: '#0f172a',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+            value={categorySearch}
+            onChange={e => setCategorySearch(e.target.value)}
+            autoFocus={!activeCategory}
+          />
+          {categorySearch && (
+            <button
+              type="button"
+              onClick={() => setCategorySearch('')}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 0,
+              }}
+              title="Clear search"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Search Results / Suggestion Chips (Only appears when typing) */}
+        {categorySearch.trim() !== '' ? (
+          <div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+              Matching Items ({filteredCategoryChips.length}):
+            </div>
+            {filteredCategoryChips.length === 0 ? (
+              <div style={{ fontSize: '0.78rem', color: '#64748b', fontStyle: 'italic', padding: '0.3rem 0' }}>
+                No items found matching "{categorySearch}". Press <strong>+ Add Entry</strong> below if you want to create a new record.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', padding: '0.2rem 0' }}>
+                {filteredCategoryChips.map(c => {
+                  const isSelected = activeCategory.toUpperCase() === c.name;
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: isSelected ? '#0f172a' : '#f8fafc',
+                        color: isSelected ? '#ffffff' : '#1e293b',
+                        border: isSelected ? '2px solid #0f172a' : '1.5px solid #cbd5e1',
+                        borderRadius: '9999px',
+                        padding: '0.35rem 0.8rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: isSelected ? '0 3px 8px rgba(0,0,0,0.2)' : '0 1px 2px rgba(0,0,0,0.04)',
+                        transition: 'all 0.12s ease',
+                      }}
+                      onClick={() => handleSelectCategory(c.name)}
+                    >
+                      <span>{c.name}</span>
+                      <span
+                        style={{
+                          fontSize: '0.675rem',
+                          fontWeight: 800,
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '9999px',
+                          background: isSelected ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                          color: isSelected ? '#ffffff' : '#475569',
+                        }}
+                      >
+                        {formatCurrency(c.total, config.currency)} ({c.count})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Sparkles size={13} style={{ color: '#d97706' }} />
+            <span>Type any letters in the search bar above (e.g. <code>PA</code>, <code>TEA</code>, <code>LAB</code>) to filter and view item analytics.</span>
+          </div>
+        )}
+      </div>
+
+      {/* SELECTED ITEM VIEW OR EMPTY PLACEHOLDER */}
+      {!activeCategory ? (
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            border: '1.5px dashed #cbd5e1',
+            padding: '2.5rem 1.5rem',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '14px',
+              background: '#f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#64748b',
+            }}
+          >
+            <Search size={28} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>
+              No Item Selected
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0, maxWidth: '420px', lineHeight: 1.4 }}>
+              Type any category in the search bar above (e.g. <strong>PARSAL</strong>, <strong>TEA</strong>, <strong>FOOD</strong>) and click it to see complete date-range spend analysis, cashier breakdown, and exportable history.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            border: '1.5px solid #0f172a',
+            padding: '0.9rem 1.15rem',
+            marginBottom: '1rem',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+          }}
+        >
+          {/* Clean Item Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                {activeCategory}
+              </h2>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <button
-                key={c.name}
                 type="button"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.35rem',
-                  background: isSelected ? '#0f172a' : '#f8fafc',
-                  color: isSelected ? '#ffffff' : '#1e293b',
-                  border: isSelected ? '1.8px solid #0f172a' : '1px solid #cbd5e1',
-                  borderRadius: '9999px',
-                  padding: '0.25rem 0.65rem',
-                  fontSize: '0.725rem',
+                  gap: '0.3rem',
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  fontSize: '0.75rem',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  boxShadow: isSelected ? '0 2px 6px rgba(0,0,0,0.18)' : 'none',
-                  transition: 'all 0.12s ease',
-                  transform: isSelected ? 'scale(1.02)' : 'none',
+                  border: 'none',
                 }}
-                onClick={() => handleSelectCategory(c.name)}
+                onClick={() => openCounterModal('expense', null, 'ADMIN')}
               >
-                <span>{c.name}</span>
-                <span
-                  style={{
-                    fontSize: '0.625rem',
-                    fontWeight: 800,
-                    padding: '0.05rem 0.35rem',
-                    borderRadius: '9999px',
-                    background: isSelected ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
-                    color: isSelected ? '#ffffff' : '#475569',
-                  }}
-                >
-                  {formatCurrency(c.total, config.currency)} ({c.count})
-                </span>
+                <Plus size={13} />
+                <span>+ Add Entry</span>
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* SELECTED ITEM VIEW */}
-      <div
-        style={{
-          background: '#ffffff',
-          borderRadius: '12px',
-          border: '1.5px solid #0f172a',
-          padding: '0.9rem 1.15rem',
-          marginBottom: '1rem',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
-        }}
-      >
-        {/* Clean Item Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.01em' }}>
-              {activeCategory}
-            </h2>
+            </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <button
-              type="button"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.3rem 0.75rem',
-                borderRadius: '6px',
-                background: '#0f172a',
-                color: '#ffffff',
-                fontSize: '0.75rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                border: 'none',
-              }}
-              onClick={() => openCounterModal('expense', null, 'ADMIN')}
-            >
-              <Plus size={13} />
-              <span>+ Add Entry</span>
-            </button>
-          </div>
-        </div>
 
         {/* Single Total Spending in Range Card */}
         <div style={{ maxWidth: '300px', marginBottom: '1rem' }}>
@@ -709,6 +824,7 @@ export const ItemAnalysisScreen: React.FC = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

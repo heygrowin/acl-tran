@@ -265,6 +265,16 @@ export class StorageService {
 
   // --- CONFIG ---
   public getConfig(): BusinessConfig {
+    let savedTreasury = { cash: 0, rtgs: 0, upi: 0 };
+    try {
+      const rawTreasury = localStorage.getItem('acl_counter_initial_treasury_balances');
+      if (rawTreasury) {
+        savedTreasury = JSON.parse(rawTreasury);
+      }
+    } catch (e) {
+      // ignore
+    }
+
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.CONFIG);
       if (raw) {
@@ -272,6 +282,9 @@ export class StorageService {
         return {
           ...DEFAULT_CONFIG,
           ...parsed,
+          initialCash: Number(parsed.initialCash) || Number(savedTreasury.cash) || 0,
+          initialRtgs: Number(parsed.initialRtgs) || Number(savedTreasury.rtgs) || 0,
+          initialUpi: Number(parsed.initialUpi) || Number(savedTreasury.upi) || 0,
           incomeCategories: Array.isArray(parsed.incomeCategories) ? parsed.incomeCategories : DEFAULT_INCOME_CATEGORIES,
           expenseCategories: Array.isArray(parsed.expenseCategories) ? parsed.expenseCategories : DEFAULT_EXPENSE_CATEGORIES,
           upiAccounts: Array.isArray(parsed.upiAccounts)
@@ -283,7 +296,12 @@ export class StorageService {
     } catch (e) {
       console.error('Failed to load config', e);
     }
-    return DEFAULT_CONFIG;
+    return {
+      ...DEFAULT_CONFIG,
+      initialCash: Number(savedTreasury.cash) || 0,
+      initialRtgs: Number(savedTreasury.rtgs) || 0,
+      initialUpi: Number(savedTreasury.upi) || 0,
+    };
   }
 
   public saveConfig(config: BusinessConfig): void {
@@ -302,7 +320,7 @@ export class StorageService {
         }
       }
     } catch (e) {
-      console.error('Failed to get session', e);
+      // ignore
     }
     return null;
   }
@@ -311,7 +329,7 @@ export class StorageService {
     try {
       localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify({ role, member }));
     } catch (e) {
-      console.error('Failed to save session', e);
+      // ignore
     }
   }
 
@@ -319,52 +337,46 @@ export class StorageService {
     try {
       localStorage.removeItem(STORAGE_KEYS.SESSION);
     } catch (e) {
-      console.error('Failed to clear session', e);
+      // ignore
     }
   }
 
   // --- COUNTERS MANAGEMENT ---
-  public getCounters(): CounterProfile[] {
-    const cfg = this.getConfig();
-    return cfg.counters || DEFAULT_COUNTERS;
-  }
-
-  public addCounter(name: string, password?: string, color = '#2563eb'): CounterProfile {
-    const cfg = this.getConfig();
+  public addCounter(name: string, password?: string, color?: string): void {
     const cleanName = name.trim();
-    const id = `counter_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+    if (!cleanName) return;
+    const cfg = this.getConfig();
+    const existing = cfg.counters || DEFAULT_COUNTERS;
     
-    const newCounter: CounterProfile = {
-      id,
-      name: cleanName,
-      color,
-      bg: '#eff6ff',
-      border: '#bfdbfe',
-      password: password?.trim() || undefined,
-    };
+    if (existing.some(c => c.name.toLowerCase() === cleanName.toLowerCase())) {
+      return;
+    }
 
-    const updatedCounters = [...(cfg.counters || []), newCounter];
-    const updatedStaff = Array.from(new Set([...cfg.staffMembers, cleanName]));
+    const newId = `cnt_${Date.now()}`;
+    const newCounter: CounterProfile = {
+      id: newId,
+      name: cleanName,
+      password: password && password.trim() ? password.trim() : undefined,
+      color: color || '#3b82f6',
+    };
 
     this.saveConfig({
       ...cfg,
-      counters: updatedCounters,
-      staffMembers: updatedStaff,
+      counters: [...existing, newCounter],
+      staffMembers: Array.from(new Set([...cfg.staffMembers, cleanName])),
     });
-
-    return newCounter;
   }
 
   public updateCounter(id: string, name: string, password?: string, color?: string): void {
     const cfg = this.getConfig();
-    const cleanName = name.trim();
-    const counters = (cfg.counters || []).map(c => {
+    const existing = cfg.counters || DEFAULT_COUNTERS;
+    const updatedCounters = existing.map(c => {
       if (c.id === id) {
         return {
           ...c,
-          name: cleanName,
-          color: color || c.color,
+          name: name.trim() || c.name,
           password: password !== undefined ? (password.trim() || undefined) : c.password,
+          color: color || c.color,
         };
       }
       return c;
@@ -372,19 +384,18 @@ export class StorageService {
 
     this.saveConfig({
       ...cfg,
-      counters,
+      counters: updatedCounters,
+      staffMembers: Array.from(new Set(updatedCounters.map(c => c.name))),
     });
   }
 
   public deleteCounter(id: string): boolean {
     const cfg = this.getConfig();
-    const counters = cfg.counters || [];
-    if (counters.length <= 1) {
-      return false; // keep at least 1 counter
-    }
+    const existing = cfg.counters || DEFAULT_COUNTERS;
+    if (existing.length <= 1) return false;
 
-    const counterToDelete = counters.find(c => c.id === id);
-    const updatedCounters = counters.filter(c => c.id !== id);
+    const counterToDelete = existing.find(c => c.id === id);
+    const updatedCounters = existing.filter(c => c.id !== id);
 
     this.saveConfig({
       ...cfg,
@@ -415,6 +426,36 @@ export class StorageService {
         });
       }
     }
+  }
+
+  public updateCategory(type: 'income' | 'expense', oldName: string, newName: string): boolean {
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanOld || !cleanNew || cleanOld === cleanNew) return false;
+
+    const cfg = this.getConfig();
+    if (type === 'income') {
+      const updated = (cfg.incomeCategories || []).map(c => (c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c));
+      this.saveConfig({ ...cfg, incomeCategories: updated });
+    } else {
+      const updated = (cfg.expenseCategories || []).map(c => (c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c));
+      this.saveConfig({ ...cfg, expenseCategories: updated });
+    }
+
+    // Also update existing transactions with this category name
+    const txs = this.getTransactions();
+    let changed = false;
+    const updatedTxs = txs.map(t => {
+      if (t.type === type && t.category && t.category.toLowerCase() === cleanOld.toLowerCase()) {
+        changed = true;
+        return { ...t, category: cleanNew, updatedAt: Date.now() };
+      }
+      return t;
+    });
+    if (changed) {
+      this.saveTransactions(updatedTxs);
+    }
+    return true;
   }
 
   // --- AUTO-SAVE UPI ACCOUNT ---
@@ -475,19 +516,38 @@ export class StorageService {
 
   // --- TREASURY INITIAL BALANCES & RUNNING TOTALS ---
   public getInitialTreasuryBalances(): { cash: number; rtgs: number; upi: number } {
+    let savedBalances = { cash: 0, rtgs: 0, upi: 0 };
+    try {
+      const raw = localStorage.getItem('acl_counter_initial_treasury_balances');
+      if (raw) {
+        savedBalances = JSON.parse(raw);
+      }
+    } catch (e) {
+      // ignore
+    }
     const config = this.getConfig();
     return {
-      cash: config.initialCash || 0,
-      rtgs: config.initialRtgs || 0,
-      upi: config.initialUpi || 0,
+      cash: Number(config.initialCash) || Number(savedBalances.cash) || 0,
+      rtgs: Number(config.initialRtgs) || Number(savedBalances.rtgs) || 0,
+      upi: Number(config.initialUpi) || Number(savedBalances.upi) || 0,
     };
   }
 
   public setInitialTreasuryBalances(balances: { cash: number; rtgs: number; upi: number }): void {
+    const cleanBalances = {
+      cash: Number(balances.cash) || 0,
+      rtgs: Number(balances.rtgs) || 0,
+      upi: Number(balances.upi) || 0,
+    };
+    try {
+      localStorage.setItem('acl_counter_initial_treasury_balances', JSON.stringify(cleanBalances));
+    } catch (e) {
+      // ignore
+    }
     const config = this.getConfig();
-    config.initialCash = Number(balances.cash) || 0;
-    config.initialRtgs = Number(balances.rtgs) || 0;
-    config.initialUpi = Number(balances.upi) || 0;
+    config.initialCash = cleanBalances.cash;
+    config.initialRtgs = cleanBalances.rtgs;
+    config.initialUpi = cleanBalances.upi;
     this.saveConfig(config);
   }
 

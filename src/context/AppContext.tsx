@@ -76,6 +76,7 @@ interface AppContextType {
   updateTransaction: (tx: Transaction) => void;
   deleteTransaction: (id: string) => void;
   addCategory: (type: TransactionType, cat: string) => void;
+  updateCategory: (type: TransactionType, oldName: string, newName: string) => void;
   addUpiAccount: (account: string) => void;
   saveClosing: (closing: Omit<DailyClosing, 'id' | 'closedAt'>) => DailyClosing;
 
@@ -299,12 +300,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
           });
 
+          const localTreasury = storage.getInitialTreasuryBalances();
+          const resolvedInitialCash = (cloudConfig.initialCash !== undefined && cloudConfig.initialCash > 0)
+            ? cloudConfig.initialCash
+            : (localConfig.initialCash || localTreasury.cash || 0);
+
+          const resolvedInitialRtgs = (cloudConfig.initialRtgs !== undefined && cloudConfig.initialRtgs > 0)
+            ? cloudConfig.initialRtgs
+            : (localConfig.initialRtgs || localTreasury.rtgs || 0);
+
+          const resolvedInitialUpi = (cloudConfig.initialUpi !== undefined && cloudConfig.initialUpi > 0)
+            ? cloudConfig.initialUpi
+            : (localConfig.initialUpi || localTreasury.upi || 0);
+
           const mergedConfig: BusinessConfig = {
             ...localConfig,
             ...cloudConfig,
+            initialCash: resolvedInitialCash,
+            initialRtgs: resolvedInitialRtgs,
+            initialUpi: resolvedInitialUpi,
             counters: mergedCounters,
-            incomeCategories: Array.isArray(cloudConfig.incomeCategories) ? cloudConfig.incomeCategories : localConfig.incomeCategories,
-            expenseCategories: Array.isArray(cloudConfig.expenseCategories) ? cloudConfig.expenseCategories : localConfig.expenseCategories,
+            incomeCategories: Array.isArray(cloudConfig.incomeCategories) && cloudConfig.incomeCategories.length > 0 ? cloudConfig.incomeCategories : localConfig.incomeCategories,
+            expenseCategories: Array.isArray(cloudConfig.expenseCategories) && cloudConfig.expenseCategories.length > 0 ? cloudConfig.expenseCategories : localConfig.expenseCategories,
           };
           localStorage.setItem('acl_counter_config_v5', JSON.stringify(mergedConfig));
           setConfigState(mergedConfig);
@@ -518,6 +535,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   };
 
+  const updateCategory = (type: TransactionType, oldName: string, newName: string) => {
+    storage.updateCategory(type, oldName, newName);
+    refreshData();
+    showToast(`Category updated to "${newName}"`);
+  };
+
   const addUpiAccount = (account: string) => {
     storage.addUpiAccount(account);
     refreshData();
@@ -667,6 +690,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTransaction,
         deleteTransaction,
         addCategory,
+        updateCategory,
         addUpiAccount,
         saveClosing,
         giveLoan,
