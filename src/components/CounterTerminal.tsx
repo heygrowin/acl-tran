@@ -96,29 +96,45 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const headInputRef = useRef<HTMLInputElement>(null);
   const accountInputRef = useRef<HTMLInputElement>(null);
 
-  // Default Quick Chips from Mockups
-  const counterReceiveQuickHeads = ['LAB WORK', 'GOODS', 'ID CARD', 'OTHER )', 'CASH IN HAND'];
-  const counterExpenseQuickHeads = ['TEATRANSPORT', 'FOOD', 'PARSAL', 'BANK (RTGS)', 'CASH IN HAND'];
+  // Category Creation State
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCatInput, setNewCatInput] = useState('');
+  const newCatInputRef = useRef<HTMLInputElement>(null);
 
-  const adminReceiveQuickHeads = ['DEPOSIT', 'CAPITAL', 'LOAN RETURN', 'BANK TRANSFER', 'CASH IN HAND', 'OTHER'];
-  const adminExpenseQuickHeads = ['WITHDRAWAL', 'PERSONAL EXPENSE', 'OFFICE EXPENSE', 'SALARY', 'BANK (RTGS)', 'CASH IN HAND'];
+  // Dynamic categories from config and transaction history
+  const activeTypeCategories = isReceive
+    ? (config.incomeCategories || [])
+    : (config.expenseCategories || []);
 
-  const quickHeadChips = isAdminEntry
-    ? (isReceive ? adminReceiveQuickHeads : adminExpenseQuickHeads)
-    : (isReceive ? counterReceiveQuickHeads : counterExpenseQuickHeads);
+  const transactionCategories = (transactions || [])
+    .filter(t => t.type === (isReceive ? 'income' : 'expense'))
+    .map(t => (t.category || '').trim())
+    .filter(c => c && c !== 'CASH IN HAND' && c !== 'BANK (RTGS)' && !c.startsWith('UPI '));
 
-  // Custom and existing categories
-  const allCategories = isAdminEntry
-    ? (isReceive
-      ? Array.from(new Set([...adminReceiveQuickHeads, ...(config.incomeCategories || [])]))
-      : Array.from(new Set([...adminExpenseQuickHeads, ...(config.expenseCategories || [])])))
-    : (isReceive
-      ? Array.from(new Set([...counterReceiveQuickHeads, ...(config.incomeCategories || [])]))
-      : Array.from(new Set([...counterExpenseQuickHeads, ...(config.expenseCategories || [])])));
+  const allCategories = Array.from(new Set([...activeTypeCategories, ...transactionCategories]))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
 
   const filteredCategories = allCategories.filter(c =>
     c.toLowerCase().includes(category.trim().toLowerCase())
   );
+
+  const handleAddNewCategory = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanName = newCatInput.trim();
+    if (!cleanName) return;
+    addCategory(isReceive ? 'income' : 'expense', cleanName);
+    setCategory(cleanName);
+    const detected = autoDetectPaymentMethodFromHead(cleanName);
+    if (detected) setPaymentMethod(detected);
+    setIsCreatingCategory(false);
+    setNewCatInput('');
+    showToast(`Head "${cleanName}" added & selected`);
+    setTimeout(() => {
+      amountInputRef.current?.focus();
+      amountInputRef.current?.select();
+    }, 50);
+  };
 
   // Custom and existing Bank / UPI Accounts (dynamic from config and transaction history)
   const transactionAccounts = (transactions || [])
@@ -687,41 +703,118 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
             </div>
           )}
 
-          {/* 3. Quick Head Chips (Gray capsules matching mockup) */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.35rem',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              marginBottom: '0.85rem',
-              padding: '0.1rem 0',
-            }}
-          >
-            {quickHeadChips.map(chipName => {
-              const isSelected = category.trim().toLowerCase() === chipName.trim().toLowerCase();
-              return (
+          {/* 3. Category / Head Quick Action (+ ADD NEW CATEGORY) */}
+          <div style={{ marginBottom: '0.75rem' }}>
+            {!isCreatingCategory ? (
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <button
-                  key={chipName}
                   type="button"
                   style={{
-                    background: isSelected ? '#1e293b' : '#d6d9dc',
-                    color: isSelected ? '#ffffff' : '#000000',
-                    border: isSelected ? '1.5px solid #000000' : '1px solid #cbd5e1',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    border: '1.5px dashed #64748b',
                     borderRadius: '9999px',
-                    padding: '0.3rem 0.75rem',
+                    padding: '0.3rem 0.95rem',
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.12s ease',
+                  }}
+                  onClick={() => {
+                    setIsCreatingCategory(true);
+                    setTimeout(() => newCatInputRef.current?.focus(), 40);
+                  }}
+                >
+                  <Plus size={13} style={{ color: isReceive ? '#16a34a' : '#dc2626' }} />
+                  <span>+ ADD NEW CATEGORY</span>
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  background: '#ffffff',
+                  border: '1.8px solid #0f172a',
+                  borderRadius: '9999px',
+                  padding: '0.25rem 0.4rem 0.25rem 0.85rem',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                }}
+              >
+                <input
+                  ref={newCatInputRef}
+                  type="text"
+                  placeholder="Enter new Category / Head name..."
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    background: 'transparent',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    outline: 'none',
+                    color: '#0f172a',
+                  }}
+                  value={newCatInput}
+                  onChange={e => setNewCatInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddNewCategory();
+                    } else if (e.key === 'Escape') {
+                      setIsCreatingCategory(false);
+                      setNewCatInput('');
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddNewCategory()}
+                  style={{
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '9999px',
+                    padding: '0.25rem 0.65rem',
                     fontSize: '0.74rem',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                    transition: 'all 0.12s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.2rem',
                   }}
-                  onClick={() => handleHeadChipClick(chipName)}
                 >
-                  {chipName}
+                  <Check size={12} />
+                  <span>Confirm</span>
                 </button>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingCategory(false);
+                    setNewCatInput('');
+                  }}
+                  style={{
+                    background: '#e2e8f0',
+                    color: '#475569',
+                    border: 'none',
+                    borderRadius: '9999px',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  title="Cancel"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 4. Form Fields: Head, AMOUNT, REMARK (Pill label on left + Stadium input on right) */}
@@ -764,7 +857,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   placeholder={
                     isAdminEntry
                       ? (isReceive ? 'Head (e.g. DEPOSIT, CAPITAL)' : 'Head (e.g. WITHDRAWAL, PERSONAL)')
-                      : (isReceive ? 'Head (e.g. LAB WORK, GOODS)' : 'Head (e.g. TEATRANSPORT, FOOD)')
+                      : (isReceive ? 'Head (e.g. LAB WORK, GOODS)' : 'Head (e.g. TEA, TRANSPORT, FOOD)')
                   }
                   value={category}
                   onChange={e => {

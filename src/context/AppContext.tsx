@@ -313,6 +313,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ? cloudConfig.initialUpi
             : (localConfig.initialUpi || localTreasury.upi || 0);
 
+          const mergedIncomeCategories = Array.from(
+            new Set([
+              ...(localConfig.incomeCategories || []),
+              ...(Array.isArray(cloudConfig.incomeCategories) ? cloudConfig.incomeCategories : []),
+            ])
+          );
+          const mergedExpenseCategories = Array.from(
+            new Set([
+              ...(localConfig.expenseCategories || []),
+              ...(Array.isArray(cloudConfig.expenseCategories) ? cloudConfig.expenseCategories : []),
+            ])
+          );
+
           const mergedConfig: BusinessConfig = {
             ...localConfig,
             ...cloudConfig,
@@ -320,8 +333,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             initialRtgs: resolvedInitialRtgs,
             initialUpi: resolvedInitialUpi,
             counters: mergedCounters,
-            incomeCategories: Array.isArray(cloudConfig.incomeCategories) && cloudConfig.incomeCategories.length > 0 ? cloudConfig.incomeCategories : localConfig.incomeCategories,
-            expenseCategories: Array.isArray(cloudConfig.expenseCategories) && cloudConfig.expenseCategories.length > 0 ? cloudConfig.expenseCategories : localConfig.expenseCategories,
+            incomeCategories: mergedIncomeCategories,
+            expenseCategories: mergedExpenseCategories,
           };
           localStorage.setItem('acl_counter_config_v5', JSON.stringify(mergedConfig));
           setConfigState(mergedConfig);
@@ -505,6 +518,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>): Transaction => {
+    if (tx.category && tx.category.trim()) {
+      const cleanCat = tx.category.trim();
+      if (cleanCat !== 'CASH IN HAND' && cleanCat !== 'BANK (RTGS)' && !cleanCat.startsWith('UPI ')) {
+        storage.addCategory(tx.type, cleanCat);
+      }
+    }
+
     const newTx = storage.addTransaction({
       ...tx,
       businessId: config.id || 'biz_default',
@@ -517,6 +537,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateTransaction = (tx: Transaction) => {
+    if (tx.category && tx.category.trim()) {
+      const cleanCat = tx.category.trim();
+      if (cleanCat !== 'CASH IN HAND' && cleanCat !== 'BANK (RTGS)' && !cleanCat.startsWith('UPI ')) {
+        storage.addCategory(tx.type, cleanCat);
+      }
+    }
     storage.updateTransaction(tx);
     saveTransactionToCloud(tx);
     refreshData();

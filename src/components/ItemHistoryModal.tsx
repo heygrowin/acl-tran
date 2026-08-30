@@ -87,8 +87,17 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
   }, [selectedPreset, todayStr]);
 
   // Extract all distinct categories/heads present in transactions
+  // Extract all distinct categories/heads present in transactions & config
   const allAvailableCategories = useMemo(() => {
     const catMap = new Map<string, number>();
+    (config.incomeCategories || []).forEach(c => {
+      const clean = c.trim().toUpperCase();
+      if (clean && !catMap.has(clean)) catMap.set(clean, 0);
+    });
+    (config.expenseCategories || []).forEach(c => {
+      const clean = c.trim().toUpperCase();
+      if (clean && !catMap.has(clean)) catMap.set(clean, 0);
+    });
     transactions.forEach(t => {
       if (!t) return;
       const cat = (t.category || '').trim().toUpperCase();
@@ -96,14 +105,10 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
         catMap.set(cat, (catMap.get(cat) || 0) + 1);
       }
     });
-    // Add default common items if not present
-    ['TEA', 'FOOD', 'PARSAL', 'TEATRANSPORT', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
-      if (!catMap.has(c)) catMap.set(c, 0);
-    });
     return Array.from(catMap.entries())
       .sort((a, b) => b[1] - a[1])
       .map(entry => entry[0]);
-  }, [transactions]);
+  }, [config.incomeCategories, config.expenseCategories, transactions]);
 
   // Filter transactions for the selected category and range
   const matchedTransactions = useMemo(() => {
@@ -114,21 +119,9 @@ export const ItemHistoryModal: React.FC<ItemHistoryModalProps> = ({
     return transactions.filter(t => {
       if (!t) return false;
       const tCat = (t.category || '').trim().toUpperCase();
-      const tNote = (t.note || '').trim().toUpperCase();
 
-      // Check category match (exact or sub-token match like TEA vs TEATRANSPORT)
-      let matchesCategory = false;
-      if (tCat === targetCat) {
-        matchesCategory = true;
-      } else if (targetCat === 'TEA' && (tCat.includes('TEA') || tCat.includes('CHAI') || tNote.includes('TEA') || tNote.includes('CHAI'))) {
-        matchesCategory = true;
-      } else if (targetCat === 'FOOD' && (tCat.includes('FOOD') || tCat.includes('LUNCH') || tCat.includes('DINNER') || tCat.includes('NASHTA'))) {
-        matchesCategory = true;
-      } else if (tCat.includes(targetCat) || targetCat.includes(tCat)) {
-        matchesCategory = true;
-      }
-
-      if (!matchesCategory) return false;
+      // Exact match for category only
+      if (tCat !== targetCat) return false;
 
       // Date filter
       const tDate = t.date || '';

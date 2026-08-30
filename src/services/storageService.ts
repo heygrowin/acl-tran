@@ -48,27 +48,22 @@ export const DEFAULT_INCOME_CATEGORIES = [
   'LAB WORK',
   'GOODS',
   'ID CARD',
-  'OTHER )',
-  'CASH IN HAND',
+  'OTHER',
   'Customer Order',
   'Advance Payment',
   'Product Sale',
   'Service Charge',
-  'Other Income'
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
-  'TEATRANSPORT',
-  'FOOD',
-  'PARSAL',
-  'BANK (RTGS)',
-  'CASH IN HAND',
   'TEA',
-  'TRANSPORTING',
+  'TRANSPORT',
+  'FOOD',
+  'PARCEL',
   'Material / Goods Purchase',
   'Staff Wages / Salary',
   'Shop Expenses / Bills',
-  'Other Expense'
+  'Other Expense',
 ];
 
 export const DEFAULT_UPI_ACCOUNTS: string[] = [];
@@ -446,9 +441,11 @@ export class StorageService {
     const txs = this.getTransactions();
     let changed = false;
     const updatedTxs = txs.map(t => {
-      if (t.type === type && t.category && t.category.toLowerCase() === cleanOld.toLowerCase()) {
+      if (t.type === type && t.category && t.category.trim().toLowerCase() === cleanOld.toLowerCase()) {
         changed = true;
-        return { ...t, category: cleanNew, updatedAt: Date.now() };
+        const updatedTx = { ...t, category: cleanNew, updatedAt: Date.now() };
+        saveTransactionToCloud(updatedTx);
+        return updatedTx;
       }
       return t;
     });

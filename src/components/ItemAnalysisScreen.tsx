@@ -83,6 +83,23 @@ export const ItemAnalysisScreen: React.FC = () => {
   const categoryStatsList = useMemo(() => {
     const map = new Map<string, { name: string; count: number; total: number; type: 'income' | 'expense' }>();
 
+    // 1. Configured income categories
+    (config.incomeCategories || []).forEach(c => {
+      const clean = c.trim().toUpperCase();
+      if (clean && !map.has(clean)) {
+        map.set(clean, { name: clean, count: 0, total: 0, type: 'income' });
+      }
+    });
+
+    // 2. Configured expense categories
+    (config.expenseCategories || []).forEach(c => {
+      const clean = c.trim().toUpperCase();
+      if (clean && !map.has(clean)) {
+        map.set(clean, { name: clean, count: 0, total: 0, type: 'expense' });
+      }
+    });
+
+    // 3. Transactions categories
     transactions.forEach(t => {
       if (!t) return;
       const rawCat = (t.category || '').trim().toUpperCase();
@@ -104,23 +121,11 @@ export const ItemAnalysisScreen: React.FC = () => {
       current.total += (t.amount || 0);
     });
 
-    // Ensure default common heads exist
-    ['TEA', 'FOOD', 'PARSAL', 'TEATRANSPORT', 'LAB WORK', 'GOODS', 'ID CARD', 'PETROL'].forEach(c => {
-      if (!map.has(c)) {
-        map.set(c, {
-          name: c,
-          count: 0,
-          total: 0,
-          type: ['LAB WORK', 'GOODS', 'ID CARD'].includes(c) ? 'income' : 'expense',
-        });
-      }
-    });
-
     return Array.from(map.values()).sort((a, b) => {
       if (b.count !== a.count) return b.count - a.count;
       return b.total - a.total;
     });
-  }, [transactions]);
+  }, [config.incomeCategories, config.expenseCategories, transactions]);
 
   // Filtered categories for chips based on active search (only shown when typing)
   const filteredCategoryChips = useMemo(() => {
@@ -145,20 +150,9 @@ export const ItemAnalysisScreen: React.FC = () => {
     return transactions.filter(t => {
       if (!t) return false;
       const tCat = (t.category || '').trim().toUpperCase();
-      const tNote = (t.note || '').trim().toUpperCase();
 
-      let matchesCategory = false;
-      if (tCat === targetCat) {
-        matchesCategory = true;
-      } else if (targetCat === 'TEA' && (tCat.includes('TEA') || tCat.includes('CHAI') || tNote.includes('TEA') || tNote.includes('CHAI'))) {
-        matchesCategory = true;
-      } else if (targetCat === 'FOOD' && (tCat.includes('FOOD') || tCat.includes('LUNCH') || tCat.includes('DINNER') || tCat.includes('NASHTA'))) {
-        matchesCategory = true;
-      } else if (tCat.includes(targetCat) || targetCat.includes(tCat)) {
-        matchesCategory = true;
-      }
-
-      if (!matchesCategory) return false;
+      // Exact match for category only
+      if (tCat !== targetCat) return false;
 
       // Date Range
       const tDate = t.date || '';
