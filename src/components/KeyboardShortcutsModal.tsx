@@ -187,21 +187,28 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.78rem', color: '#92400e' }}>
                 <span style={{ background: '#f59e0b', color: '#ffffff', borderRadius: '9999px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.68rem', flexShrink: 0 }}>1</span>
                 <div>
-                  <strong>Head:</strong> Type category name or press <kbd style={kbdStyle}>↓</kbd> <kbd style={kbdStyle}>↑</kbd> to navigate list. Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to select and auto-advance to Amount.
+                  <strong>Head:</strong> Type category name or press <kbd style={kbdStyle}>↓</kbd> <kbd style={kbdStyle}>↑</kbd> to navigate list (auto-scrolls). Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to select and auto-advance to Amount.
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.78rem', color: '#92400e' }}>
                 <span style={{ background: '#f59e0b', color: '#ffffff', borderRadius: '9999px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.68rem', flexShrink: 0 }}>2</span>
                 <div>
-                  <strong>AMOUNT:</strong> Type the amount. Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to auto-advance to Remark (or <kbd style={kbdStyle}>↑</kbd> to return to Head).
+                  <strong>AMOUNT:</strong> Type the amount. Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to auto-advance to Remark.
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.78rem', color: '#92400e' }}>
                 <span style={{ background: '#f59e0b', color: '#ffffff', borderRadius: '9999px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.68rem', flexShrink: 0 }}>3</span>
                 <div>
-                  <strong>REMARK:</strong> Type note/phone (optional). Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to <strong>Save Immediately</strong> and instantly start the next entry!
+                  <strong>REMARK & PAYMENT METHOD:</strong> Type remark/phone (optional). Press <kbd style={kbdStyle}>←</kbd> <kbd style={kbdStyle}>→</kbd> to switch between <strong>CASH</strong>, <strong>RTGS</strong>, and <strong>UPI</strong>. Press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to save (if CASH) or advance to Account list (if RTGS/UPI).
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.78rem', color: '#92400e' }}>
+                <span style={{ background: '#f59e0b', color: '#ffffff', borderRadius: '9999px', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.68rem', flexShrink: 0 }}>4</span>
+                <div>
+                  <strong>ACCOUNT (RTGS / UPI):</strong> Press <kbd style={kbdStyle}>↓</kbd> <kbd style={kbdStyle}>↑</kbd> to choose account from suggestions list and press <kbd style={kbdStyle}>Enter <CornerDownLeft size={10} style={{ display: 'inline' }} /></kbd> to save instantly!
                 </div>
               </div>
             </div>

@@ -164,6 +164,44 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const [highlightedCategoryIndex, setHighlightedCategoryIndex] = useState<number>(-1);
   const [highlightedAccountIndex, setHighlightedAccountIndex] = useState<number>(-1);
 
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll category dropdown when navigating with Arrow keys so highlighted item is always visible
+  useEffect(() => {
+    if (highlightedCategoryIndex >= 0 && categoryDropdownRef.current) {
+      const items = categoryDropdownRef.current.children;
+      const highlightedEl = items[highlightedCategoryIndex] as HTMLElement;
+      if (highlightedEl) {
+        highlightedEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [highlightedCategoryIndex]);
+
+  // Auto-scroll account dropdown when navigating with Arrow keys so highlighted item is always visible
+  useEffect(() => {
+    if (highlightedAccountIndex >= 0 && accountDropdownRef.current) {
+      const items = accountDropdownRef.current.children;
+      const highlightedEl = items[highlightedAccountIndex] as HTMLElement;
+      if (highlightedEl) {
+        highlightedEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [highlightedAccountIndex]);
+
+  const cyclePaymentMethod = (direction: 'left' | 'right') => {
+    const methods = ['cash', 'rtgs', 'upi'];
+    const currentIndex = methods.indexOf(paymentMethod.toLowerCase());
+    if (direction === 'right') {
+      const nextIndex = (currentIndex + 1) % methods.length;
+      setPaymentMethod(methods[nextIndex]);
+    } else {
+      const prevIndex = (currentIndex - 1 + methods.length) % methods.length;
+      setPaymentMethod(methods[prevIndex]);
+    }
+    setIsAccountDropdownOpen(false);
+  };
+
   // Focus Head input on open for quick arrow & keyboard typing
   useEffect(() => {
     if (isOpen) {
@@ -800,6 +838,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 {/* Dropdown Suggestions */}
                 {isCategoryDropdownOpen && filteredCategories.length > 0 && (
                   <div
+                    ref={categoryDropdownRef}
                     style={{
                       position: 'absolute',
                       top: '100%',
@@ -903,10 +942,6 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                       e.preventDefault();
                       remarkInputRef.current?.focus();
                       remarkInputRef.current?.select();
-                    } else if (e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      headInputRef.current?.focus();
-                      headInputRef.current?.select();
                     }
                   }}
                   required
@@ -952,13 +987,26 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 onKeyDown={e => {
+                  if (e.key === 'ArrowLeft') {
+                    cyclePaymentMethod('left');
+                    return;
+                  }
+                  if (e.key === 'ArrowRight') {
+                    cyclePaymentMethod('right');
+                    return;
+                  }
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleSubmit(e);
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    amountInputRef.current?.focus();
-                    amountInputRef.current?.select();
+                    if (paymentMethod === 'cash') {
+                      handleSubmit(e);
+                    } else {
+                      setTimeout(() => {
+                        accountInputRef.current?.focus();
+                        accountInputRef.current?.select();
+                        setIsAccountDropdownOpen(true);
+                        setHighlightedAccountIndex(0);
+                      }, 50);
+                    }
                   }
                 }}
               />
@@ -1053,6 +1101,14 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                         setHighlightedAccountIndex(-1);
                       }}
                       onKeyDown={e => {
+                        if (e.key === 'ArrowLeft') {
+                          cyclePaymentMethod('left');
+                          return;
+                        }
+                        if (e.key === 'ArrowRight') {
+                          cyclePaymentMethod('right');
+                          return;
+                        }
                         if (isAccountDropdownOpen && filteredAccounts.length > 0) {
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
@@ -1070,11 +1126,24 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                               setUpiAccount(filteredAccounts[highlightedAccountIndex]);
                             }
                             setIsAccountDropdownOpen(false);
+                            handleSubmit(e);
                             return;
                           }
                           if (e.key === 'Escape') {
                             e.preventDefault();
                             setIsAccountDropdownOpen(false);
+                            return;
+                          }
+                        } else {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSubmit(e);
+                            return;
+                          }
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setIsAccountDropdownOpen(true);
+                            setHighlightedAccountIndex(0);
                             return;
                           }
                         }
@@ -1104,6 +1173,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                     {/* Auto-suggest Dropdown */}
                     {isAccountDropdownOpen && (
                       <div
+                        ref={accountDropdownRef}
                         style={{
                           position: 'absolute',
                           top: '100%',
