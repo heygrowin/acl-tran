@@ -161,11 +161,17 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     setSuccessInfo(null);
   }, [isOpen, initialType, initialStaff, editingTransaction, config, selectedMember, isAdminEntry]);
 
-  // Focus amount input on open
+  const [highlightedCategoryIndex, setHighlightedCategoryIndex] = useState<number>(-1);
+  const [highlightedAccountIndex, setHighlightedAccountIndex] = useState<number>(-1);
+
+  // Focus Head input on open for quick arrow & keyboard typing
   useEffect(() => {
     if (isOpen) {
+      setHighlightedCategoryIndex(-1);
+      setHighlightedAccountIndex(-1);
       const timer = setTimeout(() => {
-        amountInputRef.current?.focus();
+        headInputRef.current?.focus();
+        headInputRef.current?.select();
       }, 70);
       return () => clearTimeout(timer);
     }
@@ -185,17 +191,34 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Keyboard shortcut listener
+  // Keyboard shortcut listener inside modal
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isCategoryDropdownOpen) {
+          setIsCategoryDropdownOpen(false);
+        } else if (isAccountDropdownOpen) {
+          setIsAccountDropdownOpen(false);
+        } else {
+          onClose();
+        }
+      }
+      // Quick Payment Method switching: Alt+1/Alt+C = Cash, Alt+2/Alt+R/Alt+B = RTGS, Alt+3/Alt+U = UPI
+      if (e.altKey && (e.key === '1' || e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        handlePaymentMethodSelect('cash');
+      } else if (e.altKey && (e.key === '2' || e.key === 'r' || e.key === 'R' || e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        handlePaymentMethodSelect('rtgs');
+      } else if (e.altKey && (e.key === '3' || e.key === 'u' || e.key === 'U')) {
+        e.preventDefault();
+        handlePaymentMethodSelect('upi');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isCategoryDropdownOpen, isAccountDropdownOpen]);
 
   const autoDetectPaymentMethodFromHead = (headText: string): string | null => {
     if (!headText) return null;
@@ -226,10 +249,12 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setPaymentMethod(detected);
     }
     setIsCategoryDropdownOpen(false);
-    // Move focus to amount if empty
-    if (!amount) {
+    setHighlightedCategoryIndex(-1);
+    // Move focus to amount and select it
+    setTimeout(() => {
       amountInputRef.current?.focus();
-    }
+      amountInputRef.current?.select();
+    }, 40);
   };
 
   const handlePaymentMethodSelect = (method: string) => {
@@ -723,8 +748,64 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                       setPaymentMethod(detected);
                     }
                     setIsCategoryDropdownOpen(true);
+                    setHighlightedCategoryIndex(-1);
                   }}
                   onFocus={() => setIsCategoryDropdownOpen(true)}
+                  onKeyDown={e => {
+                    if (isCategoryDropdownOpen && filteredCategories.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setHighlightedCategoryIndex(prev => (prev + 1) % filteredCategories.length);
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setHighlightedCategoryIndex(prev => (prev - 1 + filteredCategories.length) % filteredCategories.length);
+                        return;
+                      }
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (highlightedCategoryIndex >= 0 && highlightedCategoryIndex < filteredCategories.length) {
+                          handleHeadChipClick(filteredCategories[highlightedCategoryIndex]);
+                        } else {
+                          setIsCategoryDropdownOpen(false);
+                          const detected = autoDetectPaymentMethodFromHead(category);
+                          if (detected) setPaymentMethod(detected);
+                          setTimeout(() => {
+                            amountInputRef.current?.focus();
+                            amountInputRef.current?.select();
+                          }, 40);
+                        }
+                        return;
+                      }
+                      if (e.key === 'Tab') {
+                        setIsCategoryDropdownOpen(false);
+                        const detected = autoDetectPaymentMethodFromHead(category);
+                        if (detected) setPaymentMethod(detected);
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setIsCategoryDropdownOpen(false);
+                        return;
+                      }
+                    } else {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setIsCategoryDropdownOpen(true);
+                        setHighlightedCategoryIndex(0);
+                        return;
+                      }
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const detected = autoDetectPaymentMethodFromHead(category);
+                        if (detected) setPaymentMethod(detected);
+                        amountInputRef.current?.focus();
+                        amountInputRef.current?.select();
+                        return;
+                      }
+                    }
+                  }}
                 />
 
                 {/* Dropdown Suggestions */}
@@ -745,25 +826,31 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                       overflowY: 'auto',
                     }}
                   >
-                    {filteredCategories.map(cat => (
-                      <div
-                        key={cat}
-                        style={{
-                          padding: '0.4rem 0.75rem',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #f1f5f9',
-                          background: category.toLowerCase() === cat.toLowerCase() ? '#e2e8f0' : 'transparent',
-                        }}
-                        onClick={() => {
-                          handleHeadChipClick(cat);
-                          setIsCategoryDropdownOpen(false);
-                        }}
-                      >
-                        {cat}
-                      </div>
-                    ))}
+                    {filteredCategories.map((cat, idx) => {
+                      const isHighlighted = idx === highlightedCategoryIndex;
+                      const isExact = category.toLowerCase() === cat.toLowerCase();
+                      return (
+                        <div
+                          key={cat}
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f1f5f9',
+                            background: isHighlighted ? '#cbd5e1' : isExact ? '#e2e8f0' : 'transparent',
+                            color: '#000000',
+                          }}
+                          onClick={() => {
+                            handleHeadChipClick(cat);
+                            setIsCategoryDropdownOpen(false);
+                          }}
+                          onMouseEnter={() => setHighlightedCategoryIndex(idx)}
+                        >
+                          {cat}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -822,6 +909,17 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                   placeholder="0"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      remarkInputRef.current?.focus();
+                      remarkInputRef.current?.select();
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      headInputRef.current?.focus();
+                      headInputRef.current?.select();
+                    }
+                  }}
                   required
                 />
               </div>
@@ -864,6 +962,16 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                 placeholder="Remark / Description / Phone (Optional)"
                 value={note}
                 onChange={e => setNote(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    amountInputRef.current?.focus();
+                    amountInputRef.current?.select();
+                  }
+                }}
               />
             </div>
           </div>
@@ -879,9 +987,9 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
               }}
             >
               {[
-                { id: 'cash', label: 'CASH' },
-                { id: 'rtgs', label: 'RTGS' },
-                { id: 'upi', label: 'UPI' },
+                { id: 'cash', label: 'CASH (Alt+1)' },
+                { id: 'rtgs', label: 'RTGS (Alt+2)' },
+                { id: 'upi', label: 'UPI (Alt+3)' },
               ].map(m => {
                 const isSelected = paymentMethod.toLowerCase() === m.id.toLowerCase();
                 return (
@@ -953,6 +1061,34 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                         const val = e.target.value;
                         setUpiAccount(val);
                         setIsAccountDropdownOpen(val.trim().length > 0);
+                        setHighlightedAccountIndex(-1);
+                      }}
+                      onKeyDown={e => {
+                        if (isAccountDropdownOpen && filteredAccounts.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setHighlightedAccountIndex(prev => (prev + 1) % filteredAccounts.length);
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setHighlightedAccountIndex(prev => (prev - 1 + filteredAccounts.length) % filteredAccounts.length);
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (highlightedAccountIndex >= 0 && highlightedAccountIndex < filteredAccounts.length) {
+                              setUpiAccount(filteredAccounts[highlightedAccountIndex]);
+                            }
+                            setIsAccountDropdownOpen(false);
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setIsAccountDropdownOpen(false);
+                            return;
+                          }
+                        }
                       }}
                     />
 
@@ -994,32 +1130,37 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                           overflowY: 'auto',
                         }}
                       >
-                        {filteredAccounts.map(acc => (
-                          <div
-                            key={acc}
-                            style={{
-                              padding: '0.45rem 0.75rem',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              borderBottom: '1px solid #f1f5f9',
-                              background: upiAccount.toLowerCase() === acc.toLowerCase() ? '#e2e8f0' : '#ffffff',
-                              color: '#000000',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                            }}
-                            onClick={() => {
-                              setUpiAccount(acc);
-                              setIsAccountDropdownOpen(false);
-                            }}
-                          >
-                            <span>{acc}</span>
-                            {upiAccount.toLowerCase() === acc.toLowerCase() && (
-                              <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 900 }}>✓ Selected</span>
-                            )}
-                          </div>
-                        ))}
+                        {filteredAccounts.map((acc, idx) => {
+                          const isHighlighted = idx === highlightedAccountIndex;
+                          const isSelected = upiAccount.toLowerCase() === acc.toLowerCase();
+                          return (
+                            <div
+                              key={acc}
+                              style={{
+                                padding: '0.45rem 0.75rem',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #f1f5f9',
+                                background: isHighlighted ? '#cbd5e1' : isSelected ? '#e2e8f0' : '#ffffff',
+                                color: '#000000',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                              }}
+                              onClick={() => {
+                                setUpiAccount(acc);
+                                setIsAccountDropdownOpen(false);
+                              }}
+                              onMouseEnter={() => setHighlightedAccountIndex(idx)}
+                            >
+                              <span>{acc}</span>
+                              {isSelected && (
+                                <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 900 }}>✓ Selected</span>
+                              )}
+                            </div>
+                          );
+                        })}
 
                         {upiAccount.trim() && !isExactAccountMatch && (
                           <div

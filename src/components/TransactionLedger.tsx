@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Transaction } from '../types';
 import {
@@ -8,6 +8,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   FileSpreadsheet,
   FileText,
   Sliders,
@@ -39,6 +40,55 @@ export const isRightSideEntry = (t: Transaction) => {
   if (cUpper === 'BANK (RTGS)') return true;
   if (cUpper.startsWith('UPI ') && !cUpper.includes('LAB WORK') && !cUpper.includes('GOODS')) return true;
   return false;
+};
+
+export interface SheetGroupItem {
+  key: string;
+  title: string;
+  totalAmount: number;
+  count: number;
+  type?: 'income' | 'expense';
+  entries: {
+    id?: string;
+    title: string;
+    subtitle?: string;
+    amount: number;
+    type?: 'income' | 'expense';
+    originalTx?: Transaction;
+    paymentMethod?: string;
+  }[];
+}
+
+export const groupSheetItems = (items: {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  amount: number;
+  type?: 'income' | 'expense';
+  originalTx?: Transaction;
+  paymentMethod?: string;
+}[]): SheetGroupItem[] => {
+  const groupsMap = new Map<string, SheetGroupItem>();
+
+  items.forEach(item => {
+    const normTitle = (item.title || '').trim().toUpperCase();
+    if (!groupsMap.has(normTitle)) {
+      groupsMap.set(normTitle, {
+        key: normTitle,
+        title: item.title,
+        totalAmount: 0,
+        count: 0,
+        type: item.type,
+        entries: [],
+      });
+    }
+    const grp = groupsMap.get(normTitle)!;
+    grp.totalAmount += item.amount || 0;
+    grp.count += 1;
+    grp.entries.push(item);
+  });
+
+  return Array.from(groupsMap.values());
 };
 
 interface TransactionLedgerProps {
@@ -103,6 +153,16 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   const [initRtgsInput, setInitRtgsInput] = useState('');
   const [initUpiInput, setInitUpiInput] = useState('');
 
+  // Expandable Head Groups on Daily Sheet (Collapse same heads into total with arrow)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  };
+
   const handleOpenInitialBalanceModal = () => {
     setInitCashInput((config.initialCash || 0).toString());
     setInitRtgsInput((config.initialRtgs || 0).toString());
@@ -126,6 +186,10 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   const isToday = selectedDate === todayStr;
 
   // Single Day Navigation Handlers
+  const handleToday = () => {
+    setSelectedDate(todayStr);
+  };
+
   const handlePrevDay = () => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() - 1);
@@ -146,6 +210,42 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     }
     setSelectedDate(newDateStr);
   };
+
+  // Global Keyboard Navigation (r = Add Receive, e = Add Expense, Left/Right = Date navigation, t = Today)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.key === 'r' || e.key === 'R' || e.key === '+') {
+        e.preventDefault();
+        openCounterModal('income', undefined, isEmployee ? selectedMember : undefined);
+      } else if (e.key === 'e' || e.key === 'E' || e.key === '-') {
+        e.preventDefault();
+        openCounterModal('expense', undefined, isEmployee ? selectedMember : undefined);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevDay();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextDay();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        handleToday();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selectedDate, isEmployee, selectedMember, minAllowedDate, maxAllowedDate]);
 
   // Active Transactions for Current Scope
   const scopedTransactions = transactions.filter(t => {
@@ -633,129 +733,415 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
                   {/* 2-Column Grid: Left = Receive Items with Edit/Delete, Right = Expense/Settlement Logs */}
                   <div className="counter-sheet-grid">
-                    {/* Left: Receive Entries with Edit & Delete actions */}
+                    {/* Left: Receive Entries (Grouped duplicate heads with collapsible chevron + sum) */}
                     <div className="counter-col-entries">
-                      {receiveItems.length === 0 ? (
-                        <div style={{ color: '#94a3b8', fontSize: '0.775rem', fontStyle: 'italic', padding: '0.2rem 0' }}>
-                          —
-                        </div>
-                      ) : (
-                        receiveItems.map((item) => (
-                          <div key={item.id} className="ledger-item-row">
-                            <div className="ledger-item-left">
-                              <div
-                                className="ledger-item-title item-clickable-title"
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => openItemHistoryModal(item.originalTx?.category || item.title)}
-                                title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
-                              >
-                                {item.title}
+                      {(() => {
+                        const receiveGroups = groupSheetItems(receiveItems);
+                        if (receiveGroups.length === 0) {
+                          return (
+                            <div style={{ color: '#94a3b8', fontSize: '0.775rem', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                              —
+                            </div>
+                          );
+                        }
+
+                        return receiveGroups.map(grp => {
+                          const groupKey = `${counterName}_left_${grp.key}`;
+                          const isExpanded = !!expandedGroups[groupKey];
+                          const isMultiple = grp.entries.length > 1;
+
+                          if (!isMultiple) {
+                            const item = grp.entries[0];
+                            return (
+                              <div key={item.id || grp.key} className="ledger-item-row">
+                                <div className="ledger-item-left">
+                                  <div
+                                    className="ledger-item-title item-clickable-title"
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => openItemHistoryModal(item.originalTx?.category || item.title)}
+                                    title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
+                                  >
+                                    {item.title}
+                                  </div>
+                                  {item.subtitle && (
+                                    <div className="ledger-item-subtitle">
+                                      <span>👤</span>
+                                      <span>{item.subtitle}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span className="ledger-item-amount" style={{ color: '#000000', fontWeight: 800 }}>
+                                    {item.amount.toLocaleString()}
+                                  </span>
+                                  {item.originalTx ? (
+                                    <div className="ledger-item-actions">
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '18px', height: '18px' }}
+                                        onClick={() => handleEdit(item.originalTx!)}
+                                        title="Edit"
+                                      >
+                                        <Edit2 size={10} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '18px', height: '18px', color: '#dc2626' }}
+                                        onClick={() => handleDelete(item.originalTx!)}
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
                               </div>
-                              {item.subtitle && (
-                                <div className="ledger-item-subtitle">
-                                  <span>👤</span>
-                                  <span>{item.subtitle}</span>
+                            );
+                          }
+
+                          // Multiple entries with the same Head
+                          return (
+                            <div key={grp.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <div
+                                className="ledger-item-row"
+                                style={{
+                                  background: isExpanded ? '#f1f5f9' : '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '5px',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem 0.4rem',
+                                  userSelect: 'none',
+                                }}
+                                onClick={() => toggleGroup(groupKey)}
+                              >
+                                <div className="ledger-item-left" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: 0,
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: '#1e293b',
+                                    }}
+                                    title={isExpanded ? 'Collapse entries' : 'Expand entries'}
+                                  >
+                                    {isExpanded ? <ChevronDown size={14} strokeWidth={2.5} /> : <ChevronRight size={14} strokeWidth={2.5} />}
+                                  </button>
+                                  <span
+                                    className="ledger-item-title item-clickable-title"
+                                    style={{ cursor: 'pointer', fontWeight: 800 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openItemHistoryModal(grp.entries[0]?.originalTx?.category || grp.title);
+                                    }}
+                                    title={`Click to view ${grp.title} history`}
+                                  >
+                                    {grp.title}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: '0.65rem',
+                                      fontWeight: 800,
+                                      background: '#e2e8f0',
+                                      color: '#334155',
+                                      padding: '0.05rem 0.35rem',
+                                      borderRadius: '9999px',
+                                    }}
+                                  >
+                                    {grp.entries.length}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span className="ledger-item-amount" style={{ color: '#000000', fontWeight: 900 }}>
+                                    {grp.totalAmount.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isExpanded && (
+                                <div
+                                  style={{
+                                    paddingLeft: '1rem',
+                                    marginLeft: '0.5rem',
+                                    borderLeft: '2px solid #cbd5e1',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.15rem',
+                                    marginTop: '0.1rem',
+                                    marginBottom: '0.2rem',
+                                  }}
+                                >
+                                  {grp.entries.map((childItem, cIdx) => (
+                                    <div key={childItem.id || `child-${cIdx}`} className="ledger-item-row" style={{ padding: '0.15rem 0.25rem', background: '#ffffff', borderRadius: '4px' }}>
+                                      <div className="ledger-item-left">
+                                        <div className="ledger-item-subtitle" style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1e293b' }}>
+                                          <span>👤</span>
+                                          <span>{childItem.subtitle || 'Entry'}</span>
+                                        </div>
+                                      </div>
+
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <span className="ledger-item-amount" style={{ color: '#334155', fontWeight: 800, fontSize: '0.825rem' }}>
+                                          {childItem.amount.toLocaleString()}
+                                        </span>
+                                        {childItem.originalTx ? (
+                                          <div className="ledger-item-actions">
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '18px', height: '18px' }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEdit(childItem.originalTx!);
+                                              }}
+                                              title="Edit"
+                                            >
+                                              <Edit2 size={10} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="icon-btn"
+                                              style={{ width: '18px', height: '18px', color: '#dc2626' }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDelete(childItem.originalTx!);
+                                              }}
+                                              title="Delete"
+                                            >
+                                              <Trash2 size={10} />
+                                            </button>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                              <span className="ledger-item-amount" style={{ color: '#000000', fontWeight: 800 }}>
-                                {item.amount.toLocaleString()}
-                              </span>
-                              <div className="ledger-item-actions">
-                                <button
-                                  type="button"
-                                  className="icon-btn"
-                                  style={{ width: '18px', height: '18px' }}
-                                  onClick={() => handleEdit(item.originalTx)}
-                                  title="Edit"
-                                >
-                                  <Edit2 size={10} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="icon-btn"
-                                  style={{ width: '18px', height: '18px', color: '#dc2626' }}
-                                  onClick={() => handleDelete(item.originalTx)}
-                                  title="Delete"
-                                >
-                                  <Trash2 size={10} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          );
+                        });
+                      })()}
                     </div>
 
-                    {/* Right: Detailed Logs (Every entry with Red for Expense, Green for Receive/Settlement) */}
+                    {/* Right: Detailed Logs (Grouped duplicate heads with collapsible chevron + sum) */}
                     <div className="counter-col-entries">
-                      {rightItems.length === 0 ? (
-                        <div style={{ color: '#94a3b8', fontSize: '0.775rem', fontStyle: 'italic', padding: '0.2rem 0' }}>
-                          —
-                        </div>
-                      ) : (
-                        rightItems.map((item, iIdx) => {
-                          const isExpense = item.type === 'expense';
-                          const amountColor = isExpense ? '#dc2626' : '#16a34a';
-
+                      {(() => {
+                        const rightGroups = groupSheetItems(rightItems);
+                        if (rightGroups.length === 0) {
                           return (
-                            <div key={item.id || `auto-${iIdx}`} className="ledger-item-row">
-                              <div className="ledger-item-left">
-                                <div
-                                  className="ledger-item-title item-clickable-title"
-                                  style={{ cursor: 'pointer' }}
-                                  onClick={() => {
-                                    if (item.originalTx) {
-                                      openItemHistoryModal(item.originalTx.category || item.title);
-                                    } else if (item.title) {
-                                      openItemHistoryModal(item.title);
-                                    }
-                                  }}
-                                  title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
-                                >
-                                  {item.title}
-                                </div>
-                                {item.subtitle && (
-                                  <div className="ledger-item-subtitle">
-                                    <span>👤</span>
-                                    <span>{item.subtitle}</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <span className="ledger-item-amount" style={{ color: amountColor, fontWeight: 800 }}>
-                                  {item.amount.toLocaleString()}
-                                </span>
-                                {item.originalTx ? (
-                                  <div className="ledger-item-actions">
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '18px', height: '18px' }}
-                                      onClick={() => handleEdit(item.originalTx!)}
-                                      title="Edit"
-                                    >
-                                      <Edit2 size={10} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="icon-btn"
-                                      style={{ width: '18px', height: '18px', color: '#dc2626' }}
-                                      onClick={() => handleDelete(item.originalTx!)}
-                                      title="Delete"
-                                    >
-                                      <Trash2 size={10} />
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
+                            <div style={{ color: '#94a3b8', fontSize: '0.775rem', fontStyle: 'italic', padding: '0.2rem 0' }}>
+                              —
                             </div>
                           );
-                        })
-                      )}
+                        }
+
+                        return rightGroups.map(grp => {
+                          const groupKey = `${counterName}_right_${grp.key}`;
+                          const isExpanded = !!expandedGroups[groupKey];
+                          const isMultiple = grp.entries.length > 1;
+                          const isExpense = grp.type === 'expense';
+                          const amountColor = isExpense ? '#dc2626' : '#16a34a';
+
+                          if (!isMultiple) {
+                            const item = grp.entries[0];
+                            const itemIsExpense = item.type === 'expense';
+                            const itemAmountColor = itemIsExpense ? '#dc2626' : '#16a34a';
+
+                            return (
+                              <div key={item.id || grp.key} className="ledger-item-row">
+                                <div className="ledger-item-left">
+                                  <div
+                                    className="ledger-item-title item-clickable-title"
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => {
+                                      if (item.originalTx) {
+                                        openItemHistoryModal(item.originalTx.category || item.title);
+                                      } else if (item.title) {
+                                        openItemHistoryModal(item.title);
+                                      }
+                                    }}
+                                    title={`Click to view ${item.originalTx?.category || item.title} history & trends`}
+                                  >
+                                    {item.title}
+                                  </div>
+                                  {item.subtitle && (
+                                    <div className="ledger-item-subtitle">
+                                      <span>👤</span>
+                                      <span>{item.subtitle}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span className="ledger-item-amount" style={{ color: itemAmountColor, fontWeight: 800 }}>
+                                    {item.amount.toLocaleString()}
+                                  </span>
+                                  {item.originalTx ? (
+                                    <div className="ledger-item-actions">
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '18px', height: '18px' }}
+                                        onClick={() => handleEdit(item.originalTx!)}
+                                        title="Edit"
+                                      >
+                                        <Edit2 size={10} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="icon-btn"
+                                        style={{ width: '18px', height: '18px', color: '#dc2626' }}
+                                        onClick={() => handleDelete(item.originalTx!)}
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // Multiple entries with the same Head
+                          return (
+                            <div key={grp.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <div
+                                className="ledger-item-row"
+                                style={{
+                                  background: isExpanded ? '#f1f5f9' : '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '5px',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem 0.4rem',
+                                  userSelect: 'none',
+                                }}
+                                onClick={() => toggleGroup(groupKey)}
+                              >
+                                <div className="ledger-item-left" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: 0,
+                                      background: 'none',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      color: '#1e293b',
+                                    }}
+                                    title={isExpanded ? 'Collapse entries' : 'Expand entries'}
+                                  >
+                                    {isExpanded ? <ChevronDown size={14} strokeWidth={2.5} /> : <ChevronRight size={14} strokeWidth={2.5} />}
+                                  </button>
+                                  <span
+                                    className="ledger-item-title item-clickable-title"
+                                    style={{ cursor: 'pointer', fontWeight: 800 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openItemHistoryModal(grp.entries[0]?.originalTx?.category || grp.title);
+                                    }}
+                                    title={`Click to view ${grp.title} history`}
+                                  >
+                                    {grp.title}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: '0.65rem',
+                                      fontWeight: 800,
+                                      background: '#e2e8f0',
+                                      color: '#334155',
+                                      padding: '0.05rem 0.35rem',
+                                      borderRadius: '9999px',
+                                    }}
+                                  >
+                                    {grp.entries.length}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                  <span className="ledger-item-amount" style={{ color: amountColor, fontWeight: 900 }}>
+                                    {grp.totalAmount.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isExpanded && (
+                                <div
+                                  style={{
+                                    paddingLeft: '1rem',
+                                    marginLeft: '0.5rem',
+                                    borderLeft: '2px solid #cbd5e1',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.15rem',
+                                    marginTop: '0.1rem',
+                                    marginBottom: '0.2rem',
+                                  }}
+                                >
+                                  {grp.entries.map((childItem, cIdx) => {
+                                    const childIsExpense = childItem.type === 'expense';
+                                    const childColor = childIsExpense ? '#dc2626' : '#16a34a';
+                                    return (
+                                      <div key={childItem.id || `child-${cIdx}`} className="ledger-item-row" style={{ padding: '0.15rem 0.25rem', background: '#ffffff', borderRadius: '4px' }}>
+                                        <div className="ledger-item-left">
+                                          <div className="ledger-item-subtitle" style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1e293b' }}>
+                                            <span>👤</span>
+                                            <span>{childItem.subtitle || 'Entry'}</span>
+                                          </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                          <span className="ledger-item-amount" style={{ color: childColor, fontWeight: 800, fontSize: '0.825rem' }}>
+                                            {childItem.amount.toLocaleString()}
+                                          </span>
+                                          {childItem.originalTx ? (
+                                            <div className="ledger-item-actions">
+                                              <button
+                                                type="button"
+                                                className="icon-btn"
+                                                style={{ width: '18px', height: '18px' }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleEdit(childItem.originalTx!);
+                                                }}
+                                                title="Edit"
+                                              >
+                                                <Edit2 size={10} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="icon-btn"
+                                                style={{ width: '18px', height: '18px', color: '#dc2626' }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDelete(childItem.originalTx!);
+                                                }}
+                                                title="Delete"
+                                              >
+                                                <Trash2 size={10} />
+                                              </button>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
 
