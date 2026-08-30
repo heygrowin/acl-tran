@@ -133,22 +133,20 @@ export const SettingsModal: React.FC = () => {
     if (!editingCat || !editingCat.newName.trim()) return;
     const { type, oldName, newName } = editingCat;
     const cleanNew = newName.trim();
-    if (cleanNew === oldName) {
+    if (cleanNew.toLowerCase() === oldName.trim().toLowerCase()) {
       setEditingCat(null);
       return;
     }
 
     if (type === 'income') {
-      const updatedIncome = formData.incomeCategories.map(c => (c === oldName ? cleanNew : c));
+      const updatedIncome = formData.incomeCategories.map(c => (c.toLowerCase() === oldName.trim().toLowerCase() ? cleanNew : c));
       const updated = { ...formData, incomeCategories: updatedIncome };
       setFormData(updated);
-      updateConfig(updated);
       updateCategory('income', oldName, cleanNew);
     } else {
-      const updatedExpense = formData.expenseCategories.map(c => (c === oldName ? cleanNew : c));
+      const updatedExpense = formData.expenseCategories.map(c => (c.toLowerCase() === oldName.trim().toLowerCase() ? cleanNew : c));
       const updated = { ...formData, expenseCategories: updatedExpense };
       setFormData(updated);
-      updateConfig(updated);
       updateCategory('expense', oldName, cleanNew);
     }
     setEditingCat(null);

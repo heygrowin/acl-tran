@@ -236,8 +236,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudErrorMessage(null);
         setLastCloudSync(Date.now());
         if (cloudTxs) {
-          storage.saveTransactions(cloudTxs);
-          setTransactions(cloudTxs);
+          const currentConfig = storage.getConfig();
+          const reconciledTxs = storage.reconcileLegacyCategories(currentConfig, cloudTxs);
+          storage.saveTransactions(reconciledTxs);
+          setTransactions(reconciledTxs);
           setDayBalances(storage.calculateDayBalances(selectedDate));
         }
       },

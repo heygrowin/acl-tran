@@ -3,6 +3,7 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   setDoc,
   deleteDoc,
   onSnapshot,
@@ -371,6 +372,83 @@ export async function deleteTransactionsBetweenInCloud(
     return count;
   } catch (err) {
     console.warn('Failed to batch delete transactions in Firestore:', err);
+    return 0;
+  }
+}
+
+export async function updateCategoryInCloud(
+  businessId: string,
+  type: 'income' | 'expense',
+  oldName: string,
+  newName: string
+): Promise<number> {
+  if (isTestOrServerEnvironment()) return 0;
+  try {
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanOld || !cleanNew || cleanOld === cleanNew) return 0;
+
+    const normOld = cleanOld.toLowerCase();
+    const strippedOld = normOld.replace(/[\s\-_]/g, '');
+
+    // 1. Update Category in Cloud Config Doc
+    try {
+      const configDocRef = doc(db, COLLECTIONS.CONFIG, businessId);
+      const configSnap = await getDoc(configDocRef);
+      if (configSnap.exists()) {
+        const cfg = configSnap.data() as BusinessConfig;
+        if (type === 'income') {
+          const updated = (cfg.incomeCategories || []).map(c => {
+            const normC = c.trim().toLowerCase();
+            if (normC === normOld || normC.replace(/[\s\-_]/g, '') === strippedOld) return cleanNew;
+            return c;
+          });
+          await setDoc(configDocRef, { incomeCategories: Array.from(new Set(updated)) }, { merge: true });
+        } else {
+          const updated = (cfg.expenseCategories || []).map(c => {
+            const normC = c.trim().toLowerCase();
+            if (normC === normOld || normC.replace(/[\s\-_]/g, '') === strippedOld) return cleanNew;
+            return c;
+          });
+          await setDoc(configDocRef, { expenseCategories: Array.from(new Set(updated)) }, { merge: true });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not update category in cloud config:', e);
+    }
+
+    // 2. Query and batch-update all transactions in Firestore matching oldName (or its normalized space variants)
+    const q = query(
+      collection(db, COLLECTIONS.TRANSACTIONS),
+      where('businessId', '==', businessId)
+    );
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    let count = 0;
+
+    snapshot.forEach(docSnap => {
+      const tx = docSnap.data() as Transaction;
+      const txCat = (tx.category || '').trim().toLowerCase();
+      const txCatStripped = txCat.replace(/[\s\-_]/g, '');
+
+      if (
+        (tx.type === type || !tx.type) &&
+        (txCat === normOld || txCatStripped === strippedOld)
+      ) {
+        batch.update(docSnap.ref, {
+          category: cleanNew,
+          updatedAt: Date.now(),
+        });
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await batch.commit();
+    }
+    return count;
+  } catch (err) {
+    console.warn('Failed to update category in Firestore transactions:', err);
     return 0;
   }
 }

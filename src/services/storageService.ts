@@ -15,7 +15,8 @@ import {
   saveLoanToCloud,
   deleteLoanFromCloud,
   saveConfigToCloud,
-  deleteTransactionsBetweenInCloud
+  deleteTransactionsBetweenInCloud,
+  updateCategoryInCloud
 } from './firebaseService';
 
 const STORAGE_KEYS = {
@@ -428,20 +429,36 @@ export class StorageService {
     const cleanNew = newName.trim();
     if (!cleanOld || !cleanNew || cleanOld === cleanNew) return false;
 
+    const normOld = cleanOld.toLowerCase();
+    const strippedOld = normOld.replace(/[\s\-_]/g, '');
+
     const cfg = this.getConfig();
     if (type === 'income') {
-      const updated = (cfg.incomeCategories || []).map(c => (c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c));
-      this.saveConfig({ ...cfg, incomeCategories: updated });
+      const updated = (cfg.incomeCategories || []).map(c => {
+        const normC = c.trim().toLowerCase();
+        if (normC === normOld || normC.replace(/[\s\-_]/g, '') === strippedOld) return cleanNew;
+        return c;
+      });
+      this.saveConfig({ ...cfg, incomeCategories: Array.from(new Set(updated)) });
     } else {
-      const updated = (cfg.expenseCategories || []).map(c => (c.toLowerCase() === cleanOld.toLowerCase() ? cleanNew : c));
-      this.saveConfig({ ...cfg, expenseCategories: updated });
+      const updated = (cfg.expenseCategories || []).map(c => {
+        const normC = c.trim().toLowerCase();
+        if (normC === normOld || normC.replace(/[\s\-_]/g, '') === strippedOld) return cleanNew;
+        return c;
+      });
+      this.saveConfig({ ...cfg, expenseCategories: Array.from(new Set(updated)) });
     }
 
-    // Also update existing transactions with this category name
+    // Also update existing transactions with this category name (exact and space/hyphen variants)
     const txs = this.getTransactions();
     let changed = false;
     const updatedTxs = txs.map(t => {
-      if (t.type === type && t.category && t.category.trim().toLowerCase() === cleanOld.toLowerCase()) {
+      const txCat = (t.category || '').trim().toLowerCase();
+      const txCatStripped = txCat.replace(/[\s\-_]/g, '');
+      if (
+        (t.type === type || !t.type) &&
+        (txCat === normOld || txCatStripped === strippedOld)
+      ) {
         changed = true;
         const updatedTx = { ...t, category: cleanNew, updatedAt: Date.now() };
         saveTransactionToCloud(updatedTx);
@@ -452,7 +469,43 @@ export class StorageService {
     if (changed) {
       this.saveTransactions(updatedTxs);
     }
+
+    // Direct batch-update to Firestore Cloud
+    updateCategoryInCloud(cfg.id || 'biz_default', type, cleanOld, cleanNew);
     return true;
+  }
+
+  /**
+   * Automatically reconciles legacy or renamed categories in transactions (e.g. TEATRANSPORT / TEA TRANSPORT -> TRANSPORT ONLY).
+   */
+  public reconcileLegacyCategories(cfg: BusinessConfig, currentTxs: Transaction[]): Transaction[] {
+    const expenseCats = cfg.expenseCategories || [];
+    const hasTransportOnly = expenseCats.some(c => c.trim().toUpperCase() === 'TRANSPORT ONLY' || c.trim().toUpperCase() === 'TRANSPORT');
+    const hasTeaTransport = expenseCats.some(c => c.trim().toUpperCase() === 'TEATRANSPORT' || c.trim().toUpperCase() === 'TEA TRANSPORT' || c.trim().toUpperCase() === 'T TRANSPORT');
+
+    if (hasTransportOnly && !hasTeaTransport) {
+      const targetReplacement = expenseCats.find(c => c.trim().toUpperCase() === 'TRANSPORT ONLY') || 'TRANSPORT ONLY';
+      let changed = false;
+      const updated = currentTxs.map(t => {
+        const cUpper = (t.category || '').trim().toUpperCase();
+        if (cUpper === 'TEATRANSPORT' || cUpper === 'TEA TRANSPORT' || cUpper === 'T TRANSPORT' || cUpper === 'TEA-TRANSPORT') {
+          changed = true;
+          const fixedTx = { ...t, category: targetReplacement, updatedAt: Date.now() };
+          saveTransactionToCloud(fixedTx);
+          return fixedTx;
+        }
+        return t;
+      });
+
+      if (changed) {
+        this.saveTransactions(updated);
+        updateCategoryInCloud(cfg.id || 'biz_default', 'expense', 'TEATRANSPORT', targetReplacement);
+        updateCategoryInCloud(cfg.id || 'biz_default', 'expense', 'TEA TRANSPORT', targetReplacement);
+        updateCategoryInCloud(cfg.id || 'biz_default', 'expense', 'T TRANSPORT', targetReplacement);
+        return updated;
+      }
+    }
+    return currentTxs;
   }
 
   // --- AUTO-SAVE UPI ACCOUNT ---
