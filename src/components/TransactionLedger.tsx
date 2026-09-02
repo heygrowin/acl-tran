@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Transaction } from '../types';
 import {
@@ -483,6 +483,20 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
         return names;
       })();
 
+  // Active counters to display in Daily Sheet:
+  // - In Employee View (e.g. KRISHNA): show that employee's counter.
+  // - In Admin Daily Sheet: show ONLY counters who have entered transactions for this date.
+  const activeCounterNames = useMemo(() => {
+    if (isEmployee && selectedMember) {
+      return [selectedMember.toUpperCase()];
+    }
+    return allCounterNames.filter(counterName => {
+      return scopedTransactions.some(
+        t => (t.staffName || 'OTHER').trim().toUpperCase() === counterName
+      );
+    });
+  }, [isEmployee, selectedMember, allCounterNames, scopedTransactions]);
+
   // Calculate Overall Grand Totals across all counters
   let grandTotalReceive = 0;
   let grandTotalRight = 0;
@@ -722,62 +736,76 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
           {/* Per-Counter 2-Column Ledger Sections */}
           <div style={{ marginTop: '1.25rem' }}>
-            {allCounterNames.map(counterName => {
-              const counterTxs = scopedTransactions.filter(
-                t => (t.staffName || 'OTHER').trim().toUpperCase() === counterName
-              );
+            {activeCounterNames.length === 0 ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '2.5rem 1rem',
+                  color: '#64748b',
+                  background: '#f8fafc',
+                  borderRadius: '8px',
+                  border: '1.5px dashed #cbd5e1',
+                  margin: '0.75rem 0',
+                }}
+              >
+                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#334155' }}>
+                  No counter transactions recorded for {formatDDMMYYYY(selectedDate)}
+                </div>
+                <div style={{ fontSize: '0.75rem', marginTop: '0.35rem', color: '#94a3b8' }}>
+                  When staff enter transactions, their counter section & subtotal will automatically appear here.
+                </div>
+              </div>
+            ) : (
+              activeCounterNames.map((counterName: string) => {
+                const counterTxs = scopedTransactions.filter(
+                  t => (t.staffName || 'OTHER').trim().toUpperCase() === counterName
+                );
 
-              const receiveTxs = counterTxs.filter(t => !isRightSideEntry(t));
-              const rightItems = getCounterRightItems(counterTxs);
+                const receiveTxs = counterTxs.filter(t => !isRightSideEntry(t));
+                const rightItems = getCounterRightItems(counterTxs);
 
-              const counterCashInHandTx = counterTxs.find(
-                t => isCashInHandTransaction(t)
-              );
-              const counterCashInHand = counterCashInHandTx ? counterCashInHandTx.amount : 0;
+                const counterCashInHandTx = counterTxs.find(
+                  t => isCashInHandTransaction(t)
+                );
+                const counterCashInHand = counterCashInHandTx ? counterCashInHandTx.amount : 0;
 
-              // Individual Receive Items for Left Column
-              const receiveItems = receiveTxs.map(tx => {
-                const cat = (tx.category || 'LAB WORK').toUpperCase().trim();
-                const method = (tx.paymentMethod || 'CASH').toUpperCase().trim();
-                let title = '';
-                if (cat.includes(method)) {
-                  title = cat;
-                } else {
-                  title = `${cat} - ${method}`;
-                }
-                let sub = '';
-                if (tx.paymentAccount) {
-                  sub = `UPI(${tx.paymentAccount})`;
-                  if (tx.note) sub += ` * ${tx.note}`;
-                } else if (tx.note) {
-                  sub = tx.note;
-                } else if (tx.customerPhone) {
-                  sub = tx.customerPhone;
-                }
-                return {
-                  id: tx.id,
-                  title,
-                  subtitle: sub || undefined,
-                  amount: tx.amount,
-                  originalTx: tx,
-                };
-              });
+                // Individual Receive Items for Left Column
+                const receiveItems = receiveTxs.map(tx => {
+                  const cat = (tx.category || 'LAB WORK').toUpperCase().trim();
+                  const method = (tx.paymentMethod || 'CASH').toUpperCase().trim();
+                  let title = '';
+                  if (cat.includes(method)) {
+                    title = cat;
+                  } else {
+                    title = `${cat} - ${method}`;
+                  }
+                  let sub = '';
+                  if (tx.paymentAccount) {
+                    sub = `UPI(${tx.paymentAccount})`;
+                    if (tx.note) sub += ` * ${tx.note}`;
+                  } else if (tx.note) {
+                    sub = tx.note;
+                  } else if (tx.customerPhone) {
+                    sub = tx.customerPhone;
+                  }
+                  return {
+                    id: tx.id,
+                    title,
+                    subtitle: sub || undefined,
+                    amount: tx.amount,
+                    originalTx: tx,
+                  };
+                });
 
-              const subtotalReceive = receiveTxs.reduce((sum, t) => sum + t.amount, 0);
-              const subtotalRight = rightItems.reduce((sum, item) => sum + item.amount, 0);
-              const counterDiff = (subtotalRight + counterCashInHand) - subtotalReceive;
+                const subtotalReceive = receiveTxs.reduce((sum, t) => sum + t.amount, 0);
+                const subtotalRight = rightItems.reduce((sum, item) => sum + item.amount, 0);
+                const counterDiff = (subtotalRight + counterCashInHand) - subtotalReceive;
 
-              // Do not render empty custom counter if none exist unless it's KRISHNA, NAVIN, or OTHER
-              const isDefaultCounter = ['KRISHNA', 'NAVIN', 'OTHER'].includes(counterName);
-              if (!isDefaultCounter && counterTxs.length === 0) {
-                return null;
-              }
-
-              return (
-                <div key={counterName} className="counter-sheet-section">
-                  {/* Counter Heading (Clean, without small buttons) */}
-                  <div className="counter-sheet-title">
-                    <span>{counterName}</span>
+                return (
+                  <div key={counterName} className="counter-sheet-section">
+                    {/* Counter Heading (Clean, without small buttons) */}
+                    <div className="counter-sheet-title">
+                      <span>{counterName}</span>
                   </div>
 
                   {/* 2-Column Grid: Left = Receive Items with Edit/Delete, Right = Expense/Settlement Logs */}
@@ -1282,82 +1310,84 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   </div>
                 </div>
               );
-            })}
+            }) )}
           </div>
 
-          {/* Green Grand Total Bar */}
-          <div className="grand-total-green-bar">
-            <div className="grand-total-left">
-              <span>GRANT TOTAL</span>
-              <span style={{ fontSize: '1.35rem' }}>{grandTotalReceive.toLocaleString()}</span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <div className="grand-diff-badge-wrap">
-                <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
-                  {grandDifference === 0 ? '0' : grandDifference}
-                </span>
+          {/* Green Grand Total Bar (Shown ONLY in Admin Daily Sheet when entries exist, NEVER on the Employee end) */}
+          {!isEmployee && activeCounterNames.length > 0 && (
+            <div className="grand-total-green-bar">
+              <div className="grand-total-left">
+                <span>GRANT TOTAL</span>
+                <span style={{ fontSize: '1.35rem' }}>{grandTotalReceive.toLocaleString()}</span>
               </div>
 
-              {/* Cash in Hand button positioned right to Grand Difference */}
-              <button
-                type="button"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  background: '#000000',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.775rem',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => openClosingModal()}
-                title="Record Cash in Hand (Physical count)"
-              >
-                <Banknote size={12} />
-                <span>Cash in Hand</span>
-              </button>
-
-              {/* Grand Total Cash in Hand Amount shown right to button */}
-              {grandTotalCashInHand > 0 && (
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    background: '#ffffff',
-                    color: '#15803d',
-                    border: '2px solid #16a34a',
-                    borderRadius: '4px',
-                    padding: '0.2rem 0.55rem',
-                    fontSize: '0.85rem',
-                    fontWeight: 900,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => openClosingModal()}
-                    title="Click to edit Cash in Hand"
-                  >
-                    {grandTotalCashInHand.toLocaleString()}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div className="grand-diff-badge-wrap">
+                  <span style={{ color: grandDifference < 0 ? '#dc2626' : grandDifference > 0 ? '#16a34a' : '#000000' }}>
+                    {grandDifference === 0 ? '0' : grandDifference}
                   </span>
                 </div>
-              )}
-            </div>
 
-            <div className="grand-total-right">
-              <span style={{ fontSize: '1.35rem' }}>{grandTotalRight.toLocaleString()}</span>
+                {/* Cash in Hand button positioned right to Grand Difference */}
+                <button
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    background: '#000000',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '0.35rem 0.65rem',
+                    fontSize: '0.775rem',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onClick={() => openClosingModal()}
+                  title="Record Cash in Hand (Physical count)"
+                >
+                  <Banknote size={12} />
+                  <span>Cash in Hand</span>
+                </button>
+
+                {/* Grand Total Cash in Hand Amount shown right to button */}
+                {grandTotalCashInHand > 0 && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      background: '#ffffff',
+                      color: '#15803d',
+                      border: '2px solid #16a34a',
+                      borderRadius: '4px',
+                      padding: '0.2rem 0.55rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 900,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => openClosingModal()}
+                      title="Click to edit Cash in Hand"
+                    >
+                      {grandTotalCashInHand.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grand-total-right">
+                <span style={{ fontSize: '1.35rem' }}>{grandTotalRight.toLocaleString()}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
