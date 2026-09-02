@@ -81,8 +81,8 @@ interface AppContextType {
   saveClosing: (closing: Omit<DailyClosing, 'id' | 'closedAt'>) => DailyClosing;
 
   // Loan Management
-  giveLoan: (borrowerName: string, borrowerPhone: string, amount: number, paymentMethod: string, notes?: string) => void;
-  repayLoan: (loanId: string, amount: number, paymentMethod: string, notes?: string) => void;
+  giveLoan: (borrowerName: string, borrowerPhone: string, amount: number, paymentMethod: string, notes?: string, customDate?: string) => void;
+  repayLoan: (loanId: string, amount: number, paymentMethod: string, notes?: string, customDate?: string) => void;
   deleteLoan: (id: string) => void;
 
   // Data Purge
@@ -592,9 +592,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     borrowerPhone: string,
     amount: number,
     paymentMethod: string,
-    notes?: string
+    notes?: string,
+    customDate?: string
   ) => {
-    const res = storage.giveLoan(borrowerName, borrowerPhone, amount, paymentMethod, selectedMember, selectedDate, notes);
+    const loanDate = customDate || selectedDate || getTodayDateString();
+    const res = storage.giveLoan(borrowerName, borrowerPhone, amount, paymentMethod, selectedMember, loanDate, notes);
     saveLoanToCloud(res.loan);
     saveTransactionToCloud(res.transaction);
     refreshData();
@@ -605,9 +607,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loanId: string,
     amount: number,
     paymentMethod: string,
-    notes?: string
+    notes?: string,
+    customDate?: string
   ) => {
-    const res = storage.repayLoan(loanId, amount, paymentMethod, selectedMember, selectedDate, notes);
+    const repayDate = customDate || selectedDate || getTodayDateString();
+    const res = storage.repayLoan(loanId, amount, paymentMethod, selectedMember, repayDate, notes);
     saveLoanToCloud(res.loan);
     saveTransactionToCloud(res.transaction);
     refreshData();

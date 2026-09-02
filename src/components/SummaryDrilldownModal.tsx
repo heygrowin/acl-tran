@@ -581,118 +581,200 @@ export const SummaryDrilldownModal: React.FC<SummaryDrilldownModalProps> = ({
               <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#64748b' }}>No transactions match this filter</div>
               <div style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Try adjusting the date range, payment mode, or search keyword</div>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {filteredTransactions.map(tx => {
-                const isExpense = isRightSideEntry(tx);
-                const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
-                const amountColor = isExpense ? '#dc2626' : '#16a34a';
+          ) : (() => {
+            const dateGroupMap = new Map<string, {
+              date: string;
+              txs: Transaction[];
+              incomeTotal: number;
+              expenseTotal: number;
+            }>();
 
-                return (
-                  <div
-                    key={tx.id}
-                    className="ledger-item-row"
-                    style={{
-                      padding: '0.5rem 0.75rem',
-                      background: '#f8fafc',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {/* Left Meta Information */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
-                      {/* Counter Badge */}
-                      <span
-                        style={{
-                          fontSize: '0.675rem',
-                          fontWeight: 800,
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '4px',
-                          background: '#e0e7ff',
-                          color: '#3730a3',
-                          letterSpacing: '0.02em',
-                        }}
-                      >
-                        {tx.staffName || 'OTHER'}
-                      </span>
+            filteredTransactions.forEach(tx => {
+              const d = tx.date || 'Unknown Date';
+              if (!dateGroupMap.has(d)) {
+                dateGroupMap.set(d, {
+                  date: d,
+                  txs: [],
+                  incomeTotal: 0,
+                  expenseTotal: 0,
+                });
+              }
+              const grp = dateGroupMap.get(d)!;
+              grp.txs.push(tx);
+              if (tx.type === 'income') {
+                grp.incomeTotal += (tx.amount || 0);
+              } else {
+                grp.expenseTotal += (tx.amount || 0);
+              }
+            });
 
-                      {/* Head & Subtitle */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a' }}>
-                            {tx.category || (isExpense ? 'EXPENSE' : 'LAB WORK')}
+            const dateGroups = Array.from(dateGroupMap.values()).sort((a, b) =>
+              (b.date || '').localeCompare(a.date || '')
+            );
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {dateGroups.map(group => (
+                  <div key={group.date} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {/* Date Group Head */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#f1f5f9',
+                        border: '1.5px solid #cbd5e1',
+                        borderRadius: '7px',
+                        padding: '0.35rem 0.65rem',
+                        flexWrap: 'wrap',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Calendar size={13} style={{ color: '#334155' }} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>
+                          {formatDDMMYYYY(group.date)}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>
+                          ({group.txs.length} {group.txs.length === 1 ? 'entry' : 'entries'})
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 800, fontSize: '0.78rem' }}>
+                        {group.incomeTotal > 0 && (
+                          <span style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <span>Received:</span>
+                            <span className="font-mono">+{formatCurrency(group.incomeTotal, config.currency)}</span>
                           </span>
+                        )}
+                        {group.expenseTotal > 0 && (
+                          <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <span>Expense:</span>
+                            <span className="font-mono">−{formatCurrency(group.expenseTotal, config.currency)}</span>
+                          </span>
+                        )}
+                        {group.incomeTotal === 0 && group.expenseTotal === 0 && (
+                          <span style={{ color: '#64748b', fontSize: '0.72rem' }}>₹0</span>
+                        )}
+                      </div>
+                    </div>
 
-                          <span
+                    {/* Transaction Items */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {group.txs.map(tx => {
+                        const isExpense = isRightSideEntry(tx);
+                        const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                        const amountColor = isExpense ? '#dc2626' : '#16a34a';
+
+                        return (
+                          <div
+                            key={tx.id}
+                            className="ledger-item-row"
                             style={{
-                              fontSize: '0.625rem',
-                              fontWeight: 800,
-                              padding: '0.08rem 0.35rem',
-                              borderRadius: '4px',
-                              background: methodUpper === 'CASH' ? '#dcfce7' : methodUpper === 'RTGS' ? '#e0f2fe' : '#ede9fe',
-                              color: methodUpper === 'CASH' ? '#15803d' : methodUpper === 'RTGS' ? '#0369a1' : '#6d28d9',
+                              padding: '0.5rem 0.75rem',
+                              background: '#f8fafc',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              transition: 'all 0.15s ease',
                             }}
                           >
-                            {methodUpper}
-                          </span>
-                        </div>
+                            {/* Left Meta Information */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                              {/* Counter Badge */}
+                              <span
+                                style={{
+                                  fontSize: '0.675rem',
+                                  fontWeight: 800,
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '4px',
+                                  background: '#e0e7ff',
+                                  color: '#3730a3',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                {tx.staffName || 'OTHER'}
+                              </span>
 
-                        {/* Note & Account Meta */}
-                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <span>📅 {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && activeMethod !== 'cash' && tx.time ? ` • ⏰ ${tx.time}` : ''}</span>
-                          {tx.paymentAccount && (
-                            <span style={{ color: '#4338ca', fontWeight: 700 }}>
-                              🏦 UPI({tx.paymentAccount})
-                            </span>
-                          )}
-                          {tx.note && (
-                            <span style={{ color: '#0f172a', fontWeight: 600 }}>
-                              💬 {tx.note}
-                            </span>
-                          )}
-                          {tx.customerPhone && (
-                            <span>📞 {tx.customerPhone}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                              {/* Head & Subtitle */}
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <span style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a' }}>
+                                    {tx.category || (isExpense ? 'EXPENSE' : 'LAB WORK')}
+                                  </span>
 
-                    {/* Right Amount & Actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      <span style={{ fontSize: '0.975rem', fontWeight: 900, color: amountColor, whiteSpace: 'nowrap' }}>
-                        {isExpense ? '−' : '+'}{formatCurrency(tx.amount, config.currency)}
-                      </span>
+                                  <span
+                                    style={{
+                                      fontSize: '0.625rem',
+                                      fontWeight: 800,
+                                      padding: '0.08rem 0.35rem',
+                                      borderRadius: '4px',
+                                      background: methodUpper === 'CASH' ? '#dcfce7' : methodUpper === 'RTGS' ? '#e0f2fe' : '#ede9fe',
+                                      color: methodUpper === 'CASH' ? '#15803d' : methodUpper === 'RTGS' ? '#0369a1' : '#6d28d9',
+                                    }}
+                                  >
+                                    {methodUpper}
+                                  </span>
+                                </div>
 
-                      <div className="ledger-item-actions">
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          style={{ width: '22px', height: '22px', color: '#2563eb' }}
-                          onClick={() => handleEdit(tx)}
-                          title="Edit transaction"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          style={{ width: '22px', height: '22px', color: '#dc2626' }}
-                          onClick={() => handleDelete(tx)}
-                          title="Delete transaction"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
+                                {/* Note & Account Meta */}
+                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                  <span>📅 {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && activeMethod !== 'cash' && tx.time ? ` • ⏰ ${tx.time}` : ''}</span>
+                                  {tx.paymentAccount && (
+                                    <span style={{ color: '#4338ca', fontWeight: 700 }}>
+                                      🏦 UPI({tx.paymentAccount})
+                                    </span>
+                                  )}
+                                  {tx.note && (
+                                    <span style={{ color: '#0f172a', fontWeight: 600 }}>
+                                      💬 {tx.note}
+                                    </span>
+                                  )}
+                                  {tx.customerPhone && (
+                                    <span>📞 {tx.customerPhone}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Amount & Actions */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <span style={{ fontSize: '0.975rem', fontWeight: 900, color: amountColor, whiteSpace: 'nowrap' }}>
+                                {isExpense ? '−' : '+'}{formatCurrency(tx.amount, config.currency)}
+                              </span>
+
+                              <div className="ledger-item-actions">
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  style={{ width: '22px', height: '22px', color: '#2563eb' }}
+                                  onClick={() => handleEdit(tx)}
+                                  title="Edit transaction"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  style={{ width: '22px', height: '22px', color: '#dc2626' }}
+                                  onClick={() => handleDelete(tx)}
+                                  title="Delete transaction"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Modal Footer */}

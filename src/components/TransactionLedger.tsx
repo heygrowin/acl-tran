@@ -1977,293 +1977,425 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                           <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '0.6rem 0' }}>
                             No {treasuryTxScope === 'all' ? '' : treasuryTxScope} transactions recorded for this period.
                           </div>
-                        ) : showAdminSplitView ? (
-                          /* 2-COLUMN SPLIT VIEW (Left: Receive, Right: Expense) */
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', marginTop: '0.4rem' }}>
-                            {/* Left Column: Receive / Income */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
-                              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>RECEIVE / INCOME ({incomeTxs.length})</span>
-                                <span>+{formatCurrency(incomeInScope, config.currency)}</span>
-                              </div>
-                              {incomeTxs.length === 0 ? (
-                                <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
-                                  No receive entries
-                                </div>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
-                                  {incomeTxs.map(tx => {
-                                    const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
-                                    const sNameUpper = (tx.staffName || '').trim().toUpperCase();
-                                    const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
-                                    return (
-                                      <div
-                                        key={tx.id}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          background: '#ffffff',
-                                          border: '1px solid #e2e8f0',
-                                          borderRadius: '6px',
-                                          padding: '0.35rem 0.55rem',
-                                          fontSize: '0.775rem',
-                                          gap: '0.35rem',
-                                          minWidth: 0,
-                                        }}
-                                      >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
-                                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
-                                            {formatDDMMYYYY(tx.date)}
-                                          </span>
-                                          {tx.staffName && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
-                                              {tx.staffName}
-                                            </span>
-                                          )}
-                                          <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                                            {tx.category || 'Deposit'}
-                                          </span>
-                                          {tx.note && (
-                                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
-                                              ({tx.note})
-                                            </span>
-                                          )}
-                                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
-                                            {methodUpper}
-                                          </span>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                                          <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#16a34a', whiteSpace: 'nowrap' }}>
-                                            +{formatCurrency(tx.amount, config.currency)}
-                                          </span>
-                                          <div style={{ display: 'flex', gap: '0.15rem' }}>
-                                            <button
-                                              type="button"
-                                              className="icon-btn"
-                                              style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                              onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
-                                              title="Edit Entry"
-                                            >
-                                              <Edit2 size={11} />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="icon-btn"
-                                              style={{ width: '20px', height: '20px', color: '#dc2626' }}
-                                              onClick={() => {
-                                                if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
-                                                  deleteTransaction(tx.id);
-                                                  showToast('Entry deleted', 'info');
-                                                }
-                                              }}
-                                              title="Delete Entry"
-                                            >
-                                              <Trash2 size={11} />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
+                        ) : (() => {
+                          // Group transactions by Date (Sorted newest date first)
+                          const dateGroupMap = new Map<string, {
+                            date: string;
+                            txs: Transaction[];
+                            incomeTxs: Transaction[];
+                            expenseTxs: Transaction[];
+                            incomeTotal: number;
+                            expenseTotal: number;
+                          }>();
 
-                            {/* Right Column: Withdrawal / Expense */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
-                              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#991b1b', background: '#fee2e2', border: '1px solid #fca5a5', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>WITHDRAWAL / EXPENSE ({expenseTxs.length})</span>
-                                <span>−{formatCurrency(expenseInScope, config.currency)}</span>
-                              </div>
-                              {expenseTxs.length === 0 ? (
-                                <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
-                                  No withdrawal entries
-                                </div>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
-                                  {expenseTxs.map(tx => {
-                                    const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
-                                    const sNameUpper = (tx.staffName || '').trim().toUpperCase();
-                                    const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
-                                    return (
-                                      <div
-                                        key={tx.id}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          background: '#ffffff',
-                                          border: '1px solid #e2e8f0',
-                                          borderRadius: '6px',
-                                          padding: '0.35rem 0.55rem',
-                                          fontSize: '0.775rem',
-                                          gap: '0.35rem',
-                                          minWidth: 0,
-                                        }}
-                                      >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
-                                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
-                                            {formatDDMMYYYY(tx.date)}
-                                          </span>
-                                          {tx.staffName && (
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
-                                              {tx.staffName}
-                                            </span>
-                                          )}
-                                          <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                                            {tx.category || 'Withdrawal'}
-                                          </span>
-                                          {tx.note && (
-                                            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
-                                              ({tx.note})
-                                            </span>
-                                          )}
-                                          <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
-                                            {methodUpper}
-                                          </span>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                                          <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#dc2626', whiteSpace: 'nowrap' }}>
-                                            −{formatCurrency(tx.amount, config.currency)}
-                                          </span>
-                                          <div style={{ display: 'flex', gap: '0.15rem' }}>
-                                            <button
-                                              type="button"
-                                              className="icon-btn"
-                                              style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                              onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
-                                              title="Edit Entry"
-                                            >
-                                              <Edit2 size={11} />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="icon-btn"
-                                              style={{ width: '20px', height: '20px', color: '#dc2626' }}
-                                              onClick={() => {
-                                                if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
-                                                  deleteTransaction(tx.id);
-                                                  showToast('Entry deleted', 'info');
-                                                }
-                                              }}
-                                              title="Delete Entry"
-                                            >
-                                              <Trash2 size={11} />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* UNIFIED SINGLE-COLUMN VIEW (Default) */
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
-                            {txsInScope.map(tx => {
-                              const isIncome = tx.type === 'income';
-                              const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
-                              const sNameUpper = (tx.staffName || '').trim().toUpperCase();
-                              const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
-                              return (
-                                <div
-                                  key={tx.id}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    background: '#ffffff',
-                                    border: '1px solid #e2e8f0',
-                                    borderRadius: '7px',
-                                    padding: '0.45rem 0.75rem',
-                                    fontSize: '0.8rem',
-                                    gap: '0.5rem',
-                                    minWidth: 0,
-                                  }}
-                                >
-                                  {/* Left: Date -> Staff Badge -> Head -> Remark -> Payment Method */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
-                                    {/* 1. Date First */}
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
-                                      {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && tx.time ? ` • ${tx.time}` : ''}
-                                    </span>
+                          txsInScope.forEach(tx => {
+                            const d = tx.date || 'Unknown Date';
+                            if (!dateGroupMap.has(d)) {
+                              dateGroupMap.set(d, {
+                                date: d,
+                                txs: [],
+                                incomeTxs: [],
+                                expenseTxs: [],
+                                incomeTotal: 0,
+                                expenseTotal: 0,
+                              });
+                            }
+                            const grp = dateGroupMap.get(d)!;
+                            grp.txs.push(tx);
+                            if (tx.type === 'income') {
+                              grp.incomeTxs.push(tx);
+                              grp.incomeTotal += (tx.amount || 0);
+                            } else {
+                              grp.expenseTxs.push(tx);
+                              grp.expenseTotal += (tx.amount || 0);
+                            }
+                          });
 
-                                    {/* Staff Badge */}
-                                    {tx.staffName && (
-                                      <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
-                                        {tx.staffName}
+                          const dateGroups = Array.from(dateGroupMap.values()).sort((a, b) =>
+                            (b.date || '').localeCompare(a.date || '')
+                          );
+
+                          return showAdminSplitView ? (
+                            /* 2-COLUMN SPLIT VIEW (Organized by Date Group Heads) */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.4rem', maxHeight: '420px', overflowY: 'auto' }}>
+                              {dateGroups.map(group => (
+                                <div key={group.date} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                  {/* Date Group Head */}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      background: '#f1f5f9',
+                                      border: '1.5px solid #cbd5e1',
+                                      borderRadius: '7px',
+                                      padding: '0.35rem 0.65rem',
+                                      flexWrap: 'wrap',
+                                      gap: '0.35rem',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <Calendar size={13} style={{ color: '#334155' }} />
+                                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>
+                                        {formatDDMMYYYY(group.date)}
                                       </span>
-                                    )}
-
-                                    {/* 2. Head (Category) */}
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                                      {tx.category || (isIncome ? 'Deposit' : 'Withdrawal')}
-                                    </span>
-
-                                    {/* 3. Remark */}
-                                    {tx.note && (
-                                      <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
-                                        ({tx.note})
+                                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>
+                                        ({group.txs.length} {group.txs.length === 1 ? 'entry' : 'entries'})
                                       </span>
-                                    )}
+                                    </div>
 
-                                    {/* 4. Payment Method */}
-                                    <span
-                                      style={{
-                                        fontSize: '0.675rem',
-                                        fontWeight: 800,
-                                        padding: '0.12rem 0.45rem',
-                                        borderRadius: '4px',
-                                        background: methodUpper === 'CASH' ? '#f1f5f9' : '#e0e7ff',
-                                        color: methodUpper === 'CASH' ? '#334155' : '#3730a3',
-                                        border: methodUpper === 'CASH' ? '1px solid #cbd5e1' : '1px solid #c7d2fe',
-                                        whiteSpace: 'nowrap',
-                                      }}
-                                    >
-                                      {methodUpper}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 800, fontSize: '0.78rem' }}>
+                                      {group.incomeTotal > 0 && (
+                                        <span style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          <span>Received:</span>
+                                          <span className="font-mono">+{formatCurrency(group.incomeTotal, config.currency)}</span>
+                                        </span>
+                                      )}
+                                      {group.expenseTotal > 0 && (
+                                        <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          <span>Expense:</span>
+                                          <span className="font-mono">−{formatCurrency(group.expenseTotal, config.currency)}</span>
+                                        </span>
+                                      )}
+                                      {group.incomeTotal === 0 && group.expenseTotal === 0 && (
+                                        <span style={{ color: '#64748b', fontSize: '0.72rem' }}>₹0</span>
+                                      )}
+                                    </div>
                                   </div>
 
-                                  {/* Right: Amount & Action Buttons */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: isIncome ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap' }}>
-                                      {isIncome ? '+' : '−'}{formatCurrency(tx.amount, config.currency)}
-                                    </span>
+                                  {/* Split Columns for this Date */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.65rem' }}>
+                                    {/* Left Column: Receive / Income */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                                      {group.incomeTxs.length === 0 ? (
+                                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.35rem 0.6rem', background: '#ffffff', borderRadius: '6px', border: '1px dashed #e2e8f0' }}>
+                                          No receive entries on this date
+                                        </div>
+                                      ) : (
+                                        group.incomeTxs.map(tx => {
+                                          const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                          const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                                          const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
+                                          return (
+                                            <div
+                                              key={tx.id}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                background: '#ffffff',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '6px',
+                                                padding: '0.35rem 0.55rem',
+                                                fontSize: '0.775rem',
+                                                gap: '0.35rem',
+                                                minWidth: 0,
+                                              }}
+                                            >
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                                {methodUpper !== 'CASH' && tx.time && (
+                                                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>
+                                                    {tx.time}
+                                                  </span>
+                                                )}
+                                                {tx.staffName && (
+                                                  <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                                    {tx.staffName}
+                                                  </span>
+                                                )}
+                                                <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                                  {tx.category || 'Deposit'}
+                                                </span>
+                                                {tx.note && (
+                                                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                                    ({tx.note})
+                                                  </span>
+                                                )}
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
+                                                  {methodUpper}
+                                                </span>
+                                              </div>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                                <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#16a34a', whiteSpace: 'nowrap' }}>
+                                                  +{formatCurrency(tx.amount, config.currency)}
+                                                </span>
+                                                <div style={{ display: 'flex', gap: '0.15rem' }}>
+                                                  <button
+                                                    type="button"
+                                                    className="icon-btn"
+                                                    style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                                    onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
+                                                    title="Edit Entry"
+                                                  >
+                                                    <Edit2 size={11} />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    className="icon-btn"
+                                                    style={{ width: '20px', height: '20px', color: '#dc2626' }}
+                                                    onClick={() => {
+                                                      if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                                        deleteTransaction(tx.id);
+                                                        showToast('Entry deleted', 'info');
+                                                      }
+                                                    }}
+                                                    title="Delete Entry"
+                                                  >
+                                                    <Trash2 size={11} />
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
 
-                                    <div style={{ display: 'flex', gap: '0.2rem' }}>
-                                      <button
-                                        type="button"
-                                        className="icon-btn"
-                                        style={{ width: '22px', height: '22px', color: '#2563eb' }}
-                                        onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
-                                        title="Edit Entry"
-                                      >
-                                        <Edit2 size={12} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="icon-btn"
-                                        style={{ width: '22px', height: '22px', color: '#dc2626' }}
-                                        onClick={() => {
-                                          if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
-                                            deleteTransaction(tx.id);
-                                            showToast('Entry deleted', 'info');
-                                          }
-                                        }}
-                                        title="Delete Entry"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
+                                    {/* Right Column: Withdrawal / Expense */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
+                                      {group.expenseTxs.length === 0 ? (
+                                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.35rem 0.6rem', background: '#ffffff', borderRadius: '6px', border: '1px dashed #e2e8f0' }}>
+                                          No withdrawal entries on this date
+                                        </div>
+                                      ) : (
+                                        group.expenseTxs.map(tx => {
+                                          const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                          const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                                          const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
+                                          return (
+                                            <div
+                                              key={tx.id}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                background: '#ffffff',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '6px',
+                                                padding: '0.35rem 0.55rem',
+                                                fontSize: '0.775rem',
+                                                gap: '0.35rem',
+                                                minWidth: 0,
+                                              }}
+                                            >
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                                {methodUpper !== 'CASH' && tx.time && (
+                                                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>
+                                                    {tx.time}
+                                                  </span>
+                                                )}
+                                                {tx.staffName && (
+                                                  <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                                    {tx.staffName}
+                                                  </span>
+                                                )}
+                                                <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                                  {tx.category || 'Withdrawal'}
+                                                </span>
+                                                {tx.note && (
+                                                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                                    ({tx.note})
+                                                  </span>
+                                                )}
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '3px', background: '#f1f5f9', color: '#334155' }}>
+                                                  {methodUpper}
+                                                </span>
+                                              </div>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                                                <span style={{ fontWeight: 900, fontSize: '0.85rem', color: '#dc2626', whiteSpace: 'nowrap' }}>
+                                                  −{formatCurrency(tx.amount, config.currency)}
+                                                </span>
+                                                <div style={{ display: 'flex', gap: '0.15rem' }}>
+                                                  <button
+                                                    type="button"
+                                                    className="icon-btn"
+                                                    style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                                    onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
+                                                    title="Edit Entry"
+                                                  >
+                                                    <Edit2 size={11} />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    className="icon-btn"
+                                                    style={{ width: '20px', height: '20px', color: '#dc2626' }}
+                                                    onClick={() => {
+                                                      if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                                        deleteTransaction(tx.id);
+                                                        showToast('Entry deleted', 'info');
+                                                      }
+                                                    }}
+                                                    title="Delete Entry"
+                                                  >
+                                                    <Trash2 size={11} />
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })
+                                      )}
                                     </div>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          ) : (
+                            /* UNIFIED SINGLE-COLUMN VIEW (Organized by Date Group Heads) */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto' }}>
+                              {dateGroups.map(group => (
+                                <div key={group.date} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                  {/* Date Group Head */}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      background: '#f1f5f9',
+                                      border: '1.5px solid #cbd5e1',
+                                      borderRadius: '7px',
+                                      padding: '0.35rem 0.65rem',
+                                      flexWrap: 'wrap',
+                                      gap: '0.35rem',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <Calendar size={13} style={{ color: '#334155' }} />
+                                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>
+                                        {formatDDMMYYYY(group.date)}
+                                      </span>
+                                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>
+                                        ({group.txs.length} {group.txs.length === 1 ? 'entry' : 'entries'})
+                                      </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 800, fontSize: '0.78rem' }}>
+                                      {group.incomeTotal > 0 && (
+                                        <span style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          <span>Received:</span>
+                                          <span className="font-mono">+{formatCurrency(group.incomeTotal, config.currency)}</span>
+                                        </span>
+                                      )}
+                                      {group.expenseTotal > 0 && (
+                                        <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          <span>Expense:</span>
+                                          <span className="font-mono">−{formatCurrency(group.expenseTotal, config.currency)}</span>
+                                        </span>
+                                      )}
+                                      {group.incomeTotal === 0 && group.expenseTotal === 0 && (
+                                        <span style={{ color: '#64748b', fontSize: '0.72rem' }}>₹0</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Individual Transaction Cards for this Date */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    {group.txs.map(tx => {
+                                      const isIncome = tx.type === 'income';
+                                      const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                      const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                                      const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
+                                      return (
+                                        <div
+                                          key={tx.id}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            background: '#ffffff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '7px',
+                                            padding: '0.45rem 0.75rem',
+                                            fontSize: '0.8rem',
+                                            gap: '0.5rem',
+                                            minWidth: 0,
+                                          }}
+                                        >
+                                          {/* Left: Time -> Staff Badge -> Head -> Remark -> Payment Method */}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
+                                            {tx.time && (
+                                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                {tx.time}
+                                              </span>
+                                            )}
+
+                                            {/* Staff Badge */}
+                                            {tx.staffName && (
+                                              <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                                {tx.staffName}
+                                              </span>
+                                            )}
+
+                                            {/* Head (Category) */}
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                                              {tx.category || (isIncome ? 'Deposit' : 'Withdrawal')}
+                                            </span>
+
+                                            {/* Remark */}
+                                            {tx.note && (
+                                              <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#334155', wordBreak: 'break-word' }}>
+                                                ({tx.note})
+                                              </span>
+                                            )}
+
+                                            {/* Payment Method */}
+                                            <span
+                                              style={{
+                                                fontSize: '0.675rem',
+                                                fontWeight: 800,
+                                                padding: '0.12rem 0.45rem',
+                                                borderRadius: '4px',
+                                                background: methodUpper === 'CASH' ? '#f1f5f9' : '#e0e7ff',
+                                                color: methodUpper === 'CASH' ? '#334155' : '#3730a3',
+                                                border: methodUpper === 'CASH' ? '1px solid #cbd5e1' : '1px solid #c7d2fe',
+                                                whiteSpace: 'nowrap',
+                                              }}
+                                            >
+                                              {methodUpper}
+                                            </span>
+                                          </div>
+
+                                          {/* Right: Amount & Action Buttons */}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                            <span style={{ fontWeight: 900, fontSize: '0.9rem', color: isIncome ? '#16a34a' : '#dc2626', whiteSpace: 'nowrap' }}>
+                                              {isIncome ? '+' : '−'}{formatCurrency(tx.amount, config.currency)}
+                                            </span>
+
+                                            <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                              <button
+                                                type="button"
+                                                className="icon-btn"
+                                                style={{ width: '22px', height: '22px', color: '#2563eb' }}
+                                                onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
+                                                title="Edit Entry"
+                                              >
+                                                <Edit2 size={12} />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="icon-btn"
+                                                style={{ width: '22px', height: '22px', color: '#dc2626' }}
+                                                onClick={() => {
+                                                  if (confirm(`Delete entry of ${formatCurrency(tx.amount, config.currency)}?`)) {
+                                                    deleteTransaction(tx.id);
+                                                    showToast('Entry deleted', 'info');
+                                                  }
+                                                }}
+                                                title="Delete Entry"
+                                              >
+                                                <Trash2 size={12} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Income and Withdrawal Summary: Income on Left Corner, Withdrawal on Right Corner */}

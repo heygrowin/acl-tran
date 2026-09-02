@@ -3,6 +3,7 @@ import type {
   Transaction,
   DailyClosing,
   LoanRecord,
+  LoanEntryItem,
   CashierSummary,
   DayBalances,
   PaymentMethodConfig,
@@ -998,24 +999,38 @@ export class StorageService {
     const cfg = this.getConfig();
     const bizId = cfg.id || 'biz_default';
 
+    const historyItem: LoanEntryItem = {
+      id: `litem_${now}_${Math.random().toString(36).substring(2, 6)}`,
+      type: 'given',
+      amount,
+      date,
+      paymentMethod,
+      notes: notes || undefined,
+      recordedBy: staffName,
+      createdAt: now,
+    };
+
     if (loan) {
       loan.totalLent += amount;
       loan.pendingAmount += amount;
       loan.lastActivityDate = date;
+      if (cleanPhone && !loan.borrowerPhone) loan.borrowerPhone = cleanPhone;
       if (notes) loan.notes = notes;
       loan.updatedAt = now;
       loan.businessId = bizId;
+      loan.history = [historyItem, ...(loan.history || [])];
     } else {
       loan = {
         id: `loan_${now}_${Math.random().toString(36).substring(2, 6)}`,
         businessId: bizId,
         borrowerName: cleanName,
-        borrowerPhone: cleanPhone,
+        borrowerPhone: cleanPhone || undefined,
         totalLent: amount,
         totalRepaid: 0,
         pendingAmount: amount,
         notes: notes || 'Loan given',
         lastActivityDate: date,
+        history: [historyItem],
         createdAt: now,
         updatedAt: now,
       };
@@ -1061,11 +1076,25 @@ export class StorageService {
     const cfg = this.getConfig();
     const bizId = cfg.id || 'biz_default';
     const now = Date.now();
+
+    const historyItem: LoanEntryItem = {
+      id: `litem_${now}_${Math.random().toString(36).substring(2, 6)}`,
+      type: 'repayment',
+      amount,
+      date,
+      paymentMethod,
+      notes: notes || undefined,
+      recordedBy: staffName,
+      createdAt: now,
+    };
+
     loan.totalRepaid += amount;
     loan.pendingAmount = Math.max(0, loan.pendingAmount - amount);
     loan.lastActivityDate = date;
     loan.updatedAt = now;
     loan.businessId = bizId;
+    loan.history = [historyItem, ...(loan.history || [])];
+
     this.saveLoans(loans);
     saveLoanToCloud(loan);
 

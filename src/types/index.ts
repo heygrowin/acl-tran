@@ -88,6 +88,17 @@ export interface DailyClosing {
   closedAt: number;
 }
 
+export interface LoanEntryItem {
+  id: string;
+  type: 'given' | 'repayment';
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  notes?: string;
+  recordedBy?: string;
+  createdAt: number;
+}
+
 export interface LoanRecord {
   id: string;
   businessId: string;
@@ -98,6 +109,7 @@ export interface LoanRecord {
   pendingAmount: number;   // totalLent - totalRepaid
   notes?: string;
   lastActivityDate: string;
+  history?: LoanEntryItem[];
   createdAt: number;
   updatedAt: number;
 }

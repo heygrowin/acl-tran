@@ -177,6 +177,9 @@ const repayResult = storage.repayLoan(
 
 assert(repayResult.loan.pendingAmount === 3000, 'Pending loan reduced to ₹3,000');
 assert(repayResult.transaction.type === 'income', 'Loan repayment creates Income transaction');
+assert(repayResult.loan.history !== undefined && repayResult.loan.history.length === 2, 'Loan history records 2 activity items');
+assert(repayResult.loan.history![0].type === 'repayment', 'Latest history entry is repayment');
+assert(repayResult.loan.history![1].type === 'given', 'First history entry is loan given');
 
 // 8. Test Date Range Queries & Deletion
 const rangeTxs = storage.getTransactionsBetween('2026-08-01', '2026-08-31');
