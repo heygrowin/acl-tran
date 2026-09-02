@@ -1929,48 +1929,6 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                               );
                             })}
                           </div>
-
-                          {/* Action Buttons for Adding Admin Entries */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              style={{
-                                fontSize: '0.76rem',
-                                fontWeight: 800,
-                                padding: '0.3rem 0.7rem',
-                                borderRadius: '6px',
-                                background: '#ecfdf5',
-                                border: '1.5px solid #86efac',
-                                cursor: 'pointer',
-                                color: '#166534',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                transition: 'all 0.15s ease',
-                              }}
-                              onClick={() => openCounterModal('income', null, 'ADMIN')}
-                              title="Add Admin Deposit / Receive entry"
-                            >
-                              + Receive
-                            </button>
-                            <button
-                              type="button"
-                              style={{
-                                fontSize: '0.76rem',
-                                fontWeight: 800,
-                                padding: '0.3rem 0.7rem',
-                                borderRadius: '6px',
-                                background: '#fef2f2',
-                                border: '1.5px solid #fca5a5',
-                                cursor: 'pointer',
-                                color: '#991b1b',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                transition: 'all 0.15s ease',
-                              }}
-                              onClick={() => openCounterModal('expense', null, 'ADMIN')}
-                              title="Add Admin Withdrawal / Expense entry"
-                            >
-                              + Expense
-                            </button>
-                          </div>
                         </div>
 
                         {txsInScope.length === 0 ? (

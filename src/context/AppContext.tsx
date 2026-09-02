@@ -83,6 +83,7 @@ interface AppContextType {
   // Loan Management
   giveLoan: (borrowerName: string, borrowerPhone: string, amount: number, paymentMethod: string, notes?: string, customDate?: string) => void;
   repayLoan: (loanId: string, amount: number, paymentMethod: string, notes?: string, customDate?: string) => void;
+  updateLoan: (updatedLoan: LoanRecord) => void;
   deleteLoan: (id: string) => void;
 
   // Data Purge
@@ -618,6 +619,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Loan repayment of ₹${amount.toLocaleString()} received!`);
   };
 
+  const updateLoan = (updatedLoan: LoanRecord) => {
+    const res = storage.updateLoan(updatedLoan);
+    saveLoanToCloud(res);
+    refreshData();
+    showToast(`Loan record for ${updatedLoan.borrowerName} updated`);
+  };
+
   const deleteLoan = (id: string) => {
     storage.deleteLoan(id);
     deleteLoanFromCloud(id);
@@ -727,6 +735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveClosing,
         giveLoan,
         repayLoan,
+        updateLoan,
         deleteLoan,
         deleteTransactionsBetween,
         deleteTransactionsByMonth,

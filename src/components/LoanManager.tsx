@@ -17,12 +17,14 @@ import {
   User,
   History,
   PlusCircle,
-  ChevronRight
+  ChevronRight,
+  Edit2,
+  Pencil
 } from 'lucide-react';
 import { formatCurrency, formatDDMMYYYY, getTodayDateString } from '../services/storageService';
 
 export const LoanManager: React.FC = () => {
-  const { loans, transactions, giveLoan, repayLoan, deleteLoan, config, selectedDate } = useApp();
+  const { loans, transactions, giveLoan, repayLoan, updateLoan, deleteLoan, updateTransaction, deleteTransaction, config, selectedDate } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -45,6 +47,23 @@ export const LoanManager: React.FC = () => {
 
   // Detail Modal State (on clicking card)
   const [selectedLoanForDetail, setSelectedLoanForDetail] = useState<LoanRecord | null>(null);
+
+  // Edit History Item Modal State
+  const [editingHistoryItem, setEditingHistoryItem] = useState<{
+    loan: LoanRecord;
+    item: LoanEntryItem;
+  } | null>(null);
+  const [editItemType, setEditItemType] = useState<'given' | 'repayment'>('given');
+  const [editItemAmount, setEditItemAmount] = useState('');
+  const [editItemDate, setEditItemDate] = useState(getTodayDateString());
+  const [editItemMethod, setEditItemMethod] = useState('cash');
+  const [editItemNote, setEditItemNote] = useState('');
+
+  // Edit Borrower Profile Modal State
+  const [editingBorrowerProfile, setEditingBorrowerProfile] = useState<LoanRecord | null>(null);
+  const [editBorrowerName, setEditBorrowerName] = useState('');
+  const [editBorrowerPhone, setEditBorrowerPhone] = useState('');
+  const [editBorrowerNote, setEditBorrowerNote] = useState('');
 
   const totalPendingLoan = loans.reduce((sum, l) => sum + (l.pendingAmount || 0), 0);
   const totalLentAll = loans.reduce((sum, l) => sum + (l.totalLent || 0), 0);
@@ -160,6 +179,125 @@ export const LoanManager: React.FC = () => {
       const updated = loans.find(l => l.id === selectedLoanForRepay.id);
       if (updated) setSelectedLoanForDetail(updated);
     }
+  };
+
+  const handleOpenEditItem = (loan: LoanRecord, item: LoanEntryItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingHistoryItem({ loan, item });
+    setEditItemType(item.type);
+    setEditItemAmount(item.amount ? item.amount.toString() : '');
+    setEditItemDate(item.date || getTodayDateString());
+    setEditItemMethod(item.paymentMethod || 'cash');
+    setEditItemNote(item.notes || '');
+  };
+
+  const handleSaveEditItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingHistoryItem) return;
+    const { loan, item } = editingHistoryItem;
+    const newAmt = parseFloat(editItemAmount) || 0;
+    if (newAmt <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    // Ensure loan has history array
+    const currentHistory = loan.history && loan.history.length > 0 ? [...loan.history] : getLoanTimeline(loan);
+    const itemIndex = currentHistory.findIndex(h => h.id === item.id);
+
+    const updatedItem: LoanEntryItem = {
+      ...item,
+      type: editItemType,
+      amount: newAmt,
+      date: editItemDate,
+      paymentMethod: editItemMethod,
+      notes: editItemNote.trim() || undefined,
+    };
+
+    if (itemIndex !== -1) {
+      currentHistory[itemIndex] = updatedItem;
+    } else {
+      currentHistory.unshift(updatedItem);
+    }
+
+    const updatedLoan: LoanRecord = {
+      ...loan,
+      history: currentHistory,
+    };
+
+    const saved = updateLoan ? updateLoan(updatedLoan) : updatedLoan;
+
+    // Also update any matching ledger transaction
+    const matchingTx = (transactions || []).find(
+      t => t && t.isLoan && (t.id === item.id || (t.loanId === loan.id && t.date === item.date && t.amount === item.amount))
+    );
+    if (matchingTx) {
+      updateTransaction({
+        ...matchingTx,
+        date: editItemDate,
+        amount: newAmt,
+        type: editItemType === 'given' ? 'expense' : 'income',
+        paymentMethod: editItemMethod,
+        note: editItemNote.trim() || matchingTx.note,
+      });
+    }
+
+    setSelectedLoanForDetail(saved || updatedLoan);
+    setEditingHistoryItem(null);
+  };
+
+  const handleDeleteHistoryItem = (loan: LoanRecord, item: LoanEntryItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to remove this ${item.type === 'given' ? 'Loan Disbursement' : 'Repayment'} of ${formatCurrency(item.amount, config.currency)}?`)) {
+      return;
+    }
+
+    const currentHistory = (loan.history && loan.history.length > 0 ? [...loan.history] : getLoanTimeline(loan)).filter(h => h.id !== item.id);
+
+    const updatedLoan: LoanRecord = {
+      ...loan,
+      history: currentHistory,
+    };
+
+    const saved = updateLoan ? updateLoan(updatedLoan) : updatedLoan;
+
+    // Also remove matching transaction if found
+    const matchingTx = (transactions || []).find(
+      t => t && t.isLoan && (t.id === item.id || (t.loanId === loan.id && t.date === item.date && t.amount === item.amount))
+    );
+    if (matchingTx) {
+      deleteTransaction(matchingTx.id);
+    }
+
+    setSelectedLoanForDetail(saved || updatedLoan);
+  };
+
+  const handleOpenEditProfile = (loan: LoanRecord, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingBorrowerProfile(loan);
+    setEditBorrowerName(loan.borrowerName);
+    setEditBorrowerPhone(loan.borrowerPhone || '');
+    setEditBorrowerNote(loan.notes || '');
+  };
+
+  const handleSaveEditProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBorrowerProfile) return;
+    if (!editBorrowerName.trim()) {
+      alert('Please enter borrower name');
+      return;
+    }
+
+    const updatedLoan: LoanRecord = {
+      ...editingBorrowerProfile,
+      borrowerName: editBorrowerName.trim(),
+      borrowerPhone: editBorrowerPhone.trim() || undefined,
+      notes: editBorrowerNote.trim() || undefined,
+    };
+
+    const saved = updateLoan ? updateLoan(updatedLoan) : updatedLoan;
+    setSelectedLoanForDetail(saved || updatedLoan);
+    setEditingBorrowerProfile(null);
   };
 
   const handleDelete = (loan: LoanRecord, e?: React.MouseEvent) => {
@@ -597,14 +735,27 @@ export const LoanManager: React.FC = () => {
                   <User size={18} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
-                    {selectedLoanForDetail.borrowerName}
-                  </h3>
-                  <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                      {selectedLoanForDetail.borrowerName}
+                    </h3>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      style={{ width: '22px', height: '22px', color: '#2563eb' }}
+                      onClick={e => handleOpenEditProfile(selectedLoanForDetail, e)}
+                      title="Edit Borrower details"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.725rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
                     {selectedLoanForDetail.borrowerPhone ? (
                       <>
-                        <Phone size={11} />
-                        <span>{selectedLoanForDetail.borrowerPhone}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                          <Phone size={11} />
+                          <span>{selectedLoanForDetail.borrowerPhone}</span>
+                        </span>
                         <button
                           type="button"
                           onClick={e => handleWhatsApp(selectedLoanForDetail, e)}
@@ -614,7 +765,7 @@ export const LoanManager: React.FC = () => {
                         </button>
                       </>
                     ) : (
-                      <span style={{ fontStyle: 'italic' }}>No phone number saved</span>
+                      <span style={{ fontStyle: 'italic' }}>No phone saved</span>
                     )}
                   </div>
                 </div>
@@ -663,13 +814,10 @@ export const LoanManager: React.FC = () => {
 
             {/* Timeline History Section */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <History size={14} style={{ color: '#475569' }} />
-                <span>Loan Disbursements & Repayment History</span>
+              <div style={{ fontSize: '0.825rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <History size={15} style={{ color: '#334155' }} />
+                <span>History</span>
               </div>
-              <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 700 }}>
-                Chronological Log
-              </span>
             </div>
 
             <div
@@ -770,7 +918,7 @@ export const LoanManager: React.FC = () => {
                         )}
                       </div>
 
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
                         <div
                           className="font-mono"
                           style={{
@@ -780,6 +928,27 @@ export const LoanManager: React.FC = () => {
                           }}
                         >
                           {isGiven ? '−' : '+'}{formatCurrency(item.amount, config.currency)}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            style={{ width: '22px', height: '22px', color: '#2563eb' }}
+                            onClick={e => handleOpenEditItem(selectedLoanForDetail, item, e)}
+                            title="Edit this entry"
+                          >
+                            <Edit2 size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            style={{ width: '22px', height: '22px', color: '#dc2626' }}
+                            onClick={e => handleDeleteHistoryItem(selectedLoanForDetail, item, e)}
+                            title="Delete this entry"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1191,6 +1360,228 @@ export const LoanManager: React.FC = () => {
               >
                 <Check size={16} />
                 <span>Receive Payment ({formatCurrency(parseFloat(repayAmount) || 0, config.currency)})</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT LOAN ENTRY MODAL */}
+      {editingHistoryItem && (
+        <div className="modal-overlay" onClick={() => setEditingHistoryItem(null)}>
+          <div className="modal-content animate-scale-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Edit2 size={18} style={{ color: '#2563eb' }} />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Edit Loan Entry: {editingHistoryItem.loan.borrowerName}
+                </h3>
+              </div>
+              <button className="icon-btn" onClick={() => setEditingHistoryItem(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditItem}>
+              {/* Entry Type Switcher */}
+              <div className="form-group">
+                <label className="form-label">Entry Type:</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '6px',
+                      border: editItemType === 'given' ? '2px solid #d97706' : '1px solid #cbd5e1',
+                      background: editItemType === 'given' ? '#fef3c7' : '#ffffff',
+                      color: editItemType === 'given' ? '#92400e' : '#475569',
+                      fontWeight: 800,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setEditItemType('given')}
+                  >
+                    Loan Given (Money Out)
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '6px',
+                      border: editItemType === 'repayment' ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                      background: editItemType === 'repayment' ? '#dcfce7' : '#ffffff',
+                      color: editItemType === 'repayment' ? '#166534' : '#475569',
+                      fontWeight: 800,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setEditItemType('repayment')}
+                  >
+                    Repayment (Money In)
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount & Date Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.5rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Amount ({config.currency}):</label>
+                  <input
+                    type="number"
+                    step="any"
+                    className="form-input font-mono"
+                    style={{ fontSize: '1.15rem', fontWeight: 800 }}
+                    value={editItemAmount}
+                    onChange={e => setEditItemAmount(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Date of Entry:</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    style={{ fontSize: '0.8rem', padding: '0.45rem 0.5rem', fontWeight: 700 }}
+                    value={editItemDate}
+                    onChange={e => setEditItemDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Payment Mode */}
+              <div className="form-group">
+                <label className="form-label">Payment Mode:</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    className={`method-chip ${editItemMethod === 'cash' ? 'active' : ''}`}
+                    style={{
+                      padding: '0.55rem 0.4rem',
+                      border: editItemMethod === 'cash' ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                      background: editItemMethod === 'cash' ? '#f0fdf4' : '#ffffff',
+                      color: editItemMethod === 'cash' ? '#16a34a' : '#475569',
+                    }}
+                    onClick={() => setEditItemMethod('cash')}
+                  >
+                    <Banknote size={16} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>Cash</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`method-chip ${editItemMethod === 'upi' ? 'active' : ''}`}
+                    style={{
+                      padding: '0.55rem 0.4rem',
+                      border: editItemMethod === 'upi' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                      background: editItemMethod === 'upi' ? '#eff6ff' : '#ffffff',
+                      color: editItemMethod === 'upi' ? '#2563eb' : '#475569',
+                    }}
+                    onClick={() => setEditItemMethod('upi')}
+                  >
+                    <QrCode size={16} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>UPI</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`method-chip ${editItemMethod === 'rtgs' ? 'active' : ''}`}
+                    style={{
+                      padding: '0.55rem 0.4rem',
+                      border: editItemMethod === 'rtgs' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                      background: editItemMethod === 'rtgs' ? '#f5f3ff' : '#ffffff',
+                      color: editItemMethod === 'rtgs' ? '#7c3aed' : '#475569',
+                    }}
+                    onClick={() => setEditItemMethod('rtgs')}
+                  >
+                    <Building size={16} />
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>RTGS</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Note / Remark (Optional):</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Loan disbursement or repayment remark"
+                  value={editItemNote}
+                  onChange={e => setEditItemNote(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-fast-income"
+                style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem', background: '#2563eb', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)' }}
+              >
+                <Check size={16} />
+                <span>Save Changes ({formatCurrency(parseFloat(editItemAmount) || 0, config.currency)})</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT BORROWER PROFILE MODAL */}
+      {editingBorrowerProfile && (
+        <div className="modal-overlay" onClick={() => setEditingBorrowerProfile(null)}>
+          <div className="modal-content animate-scale-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Pencil size={18} style={{ color: '#2563eb' }} />
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Edit Borrower Profile
+                </h3>
+              </div>
+              <button className="icon-btn" onClick={() => setEditingBorrowerProfile(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditProfile}>
+              <div className="form-group">
+                <label className="form-label">Person / Borrower Name:</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editBorrowerName}
+                  onChange={e => setEditBorrowerName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mobile Number (Optional):</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="10-digit mobile number"
+                  value={editBorrowerPhone}
+                  onChange={e => setEditBorrowerPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">General Note / Remark (Optional):</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="General info or notes"
+                  value={editBorrowerNote}
+                  onChange={e => setEditBorrowerNote(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-fast-income"
+                style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem', background: '#2563eb', boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)' }}
+              >
+                <Check size={16} />
+                <span>Save Profile</span>
               </button>
             </form>
           </div>

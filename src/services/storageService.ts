@@ -1119,6 +1119,39 @@ export class StorageService {
     return { loan, transaction: tx };
   }
 
+  public updateLoan(updatedLoan: LoanRecord): LoanRecord {
+    const loans = this.getLoans();
+    const idx = loans.findIndex(l => l.id === updatedLoan.id);
+    if (idx === -1) throw new Error('Loan record not found');
+
+    // Recalculate totals from history if present
+    if (updatedLoan.history && updatedLoan.history.length > 0) {
+      let totalLent = 0;
+      let totalRepaid = 0;
+      let latestDate = updatedLoan.lastActivityDate;
+      updatedLoan.history.forEach(item => {
+        if (item.type === 'given') {
+          totalLent += (item.amount || 0);
+        } else {
+          totalRepaid += (item.amount || 0);
+        }
+        if (item.date && (!latestDate || item.date > latestDate)) {
+          latestDate = item.date;
+        }
+      });
+      updatedLoan.totalLent = totalLent;
+      updatedLoan.totalRepaid = totalRepaid;
+      updatedLoan.pendingAmount = Math.max(0, totalLent - totalRepaid);
+      updatedLoan.lastActivityDate = latestDate;
+    }
+
+    updatedLoan.updatedAt = Date.now();
+    loans[idx] = updatedLoan;
+    this.saveLoans(loans);
+    saveLoanToCloud(updatedLoan);
+    return updatedLoan;
+  }
+
   public deleteLoan(id: string): void {
     const loans = this.getLoans().filter(l => l.id !== id);
     this.saveLoans(loans);

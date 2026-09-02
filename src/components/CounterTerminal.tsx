@@ -7,6 +7,7 @@ import {
   Trash2,
   ChevronDown,
   Plus,
+  Calendar,
 } from 'lucide-react';
 import { getTodayDateString, getCurrentTimeString, formatCurrency } from '../services/storageService';
 
@@ -72,6 +73,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
   const [staffName, setStaffName] = useState<string>(defaultStaff);
   const [category, setCategory] = useState<string>(''); // Head in UI
   const [note, setNote] = useState<string>(''); // Remark in UI
+  const [entryDate, setEntryDate] = useState<string>(selectedDate || getTodayDateString());
   const [amount, setAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [upiAccount, setUpiAccount] = useState<string>('');
@@ -161,6 +163,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setStaffName(editingTransaction.staffName || (isAdminEntry ? 'ADMIN' : defaultStaff));
       setCategory(editingTransaction.category || '');
       setNote(editingTransaction.note || '');
+      setEntryDate(editingTransaction.date || selectedDate || getTodayDateString());
       setAmount(editingTransaction.amount ? editingTransaction.amount.toString() : '');
       setPaymentMethod(editingTransaction.paymentMethod || 'cash');
       setUpiAccount(editingTransaction.paymentAccount || '');
@@ -168,6 +171,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       setStaffName(isAdminEntry ? 'ADMIN' : (initialStaff || (selectedMember && selectedMember !== 'Admin / Owner' ? selectedMember : 'KRISHNA')));
       setCategory('');
       setNote('');
+      setEntryDate(selectedDate || getTodayDateString());
       setAmount('');
       setPaymentMethod('cash');
       setUpiAccount('');
@@ -175,7 +179,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
     setIsCategoryDropdownOpen(false);
     setIsAccountDropdownOpen(false);
     setSuccessInfo(null);
-  }, [isOpen, initialType, initialStaff, editingTransaction, config, selectedMember, isAdminEntry]);
+  }, [isOpen, initialType, initialStaff, editingTransaction, config, selectedMember, isAdminEntry, selectedDate]);
 
   const [highlightedCategoryIndex, setHighlightedCategoryIndex] = useState<number>(-1);
   const [highlightedAccountIndex, setHighlightedAccountIndex] = useState<number>(-1);
@@ -340,6 +344,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       // Update existing transaction
       updateTransaction({
         ...editingTransaction,
+        date: entryDate || editingTransaction.date || selectedDate || getTodayDateString(),
         type: entryType,
         amount: finalAmount,
         paymentMethod,
@@ -355,7 +360,7 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
       // Add new transaction
       addTransaction({
         businessId: config.id,
-        date: selectedDate || getTodayDateString(),
+        date: entryDate || selectedDate || getTodayDateString(),
         time: getCurrentTimeString(),
         type: entryType,
         amount: finalAmount,
@@ -1102,6 +1107,58 @@ export const CounterTerminal: React.FC<CounterTerminalProps> = ({
                     }
                   }
                 }}
+              />
+            </div>
+          </div>
+
+          {/* 4.5 Date Selection Field (Below Remark) */}
+          <div style={{ marginBottom: '0.65rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 0.25rem',
+                marginBottom: '0.25rem',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '0.725rem',
+                  fontWeight: 800,
+                  color: '#475569',
+                  letterSpacing: '0.04em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                }}
+              >
+                <Calendar size={13} style={{ color: '#000000' }} />
+                <span>ENTRY DATE</span>
+              </span>
+              <span style={{ fontSize: '0.675rem', color: '#64748b', fontWeight: 600 }}>
+                Select log date
+              </span>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <input
+                type="date"
+                style={{
+                  width: '100%',
+                  padding: '0.45rem 1rem',
+                  borderRadius: '9999px',
+                  border: '1.8px solid #000000',
+                  background: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: '#000000',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                value={entryDate}
+                onChange={e => setEntryDate(e.target.value)}
+                required
               />
             </div>
           </div>
