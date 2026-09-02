@@ -182,6 +182,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
   // Date Range for Summary Mode (Defaults to Today)
   const [summaryStartDate, setSummaryStartDate] = useState(todayStr);
   const [summaryEndDate, setSummaryEndDate] = useState(todayStr);
+  const [treasuryTxScope, setTreasuryTxScope] = useState<'admin' | 'employee' | 'all'>('admin');
 
   const isToday = selectedDate === todayStr;
 
@@ -211,6 +212,41 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
     setSelectedDate(newDateStr);
   };
 
+  // Summary Date Navigation Handlers (Step Day by Day)
+  const handleSummaryPrevDay = () => {
+    if (summaryStartDate === summaryEndDate) {
+      const d = new Date(summaryStartDate);
+      d.setDate(d.getDate() - 1);
+      const s = d.toISOString().split('T')[0];
+      setSummaryStartDate(s);
+      setSummaryEndDate(s);
+    } else {
+      const d1 = new Date(summaryStartDate);
+      const d2 = new Date(summaryEndDate);
+      d1.setDate(d1.getDate() - 1);
+      d2.setDate(d2.getDate() - 1);
+      setSummaryStartDate(d1.toISOString().split('T')[0]);
+      setSummaryEndDate(d2.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleSummaryNextDay = () => {
+    if (summaryStartDate === summaryEndDate) {
+      const d = new Date(summaryEndDate);
+      d.setDate(d.getDate() + 1);
+      const s = d.toISOString().split('T')[0];
+      setSummaryStartDate(s);
+      setSummaryEndDate(s);
+    } else {
+      const d1 = new Date(summaryStartDate);
+      const d2 = new Date(summaryEndDate);
+      d1.setDate(d1.getDate() + 1);
+      d2.setDate(d2.getDate() + 1);
+      setSummaryStartDate(d1.toISOString().split('T')[0]);
+      setSummaryEndDate(d2.toISOString().split('T')[0]);
+    }
+  };
+
   // Global Keyboard Navigation (r = Add Receive, e = Add Expense, Left/Right = Date navigation, t = Today)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -238,10 +274,18 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
         openCounterModal('expense', undefined, isEmployee ? selectedMember : undefined);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        handlePrevDay();
+        if (viewMode === 'summary') {
+          handleSummaryPrevDay();
+        } else {
+          handlePrevDay();
+        }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        handleNextDay();
+        if (viewMode === 'summary') {
+          handleSummaryNextDay();
+        } else {
+          handleNextDay();
+        }
       } else if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
         handleToday();
@@ -1327,12 +1371,60 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
             SUMMARY
           </h1>
 
-          {/* Date Range Subtitle */}
+          {/* Date Range Subtitle with Left & Right Navigation Arrows */}
           <div style={{ textAlign: 'center', marginBottom: '0.75rem' }}>
-            <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#1a1a9e' }}>
-              {summaryStartDate === summaryEndDate
-                ? formatDDMMYYYY(summaryStartDate)
-                : `${formatDDMMYYYY(summaryStartDate)} TO ${formatDDMMYYYY(summaryEndDate)}`}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem' }}>
+              <button
+                type="button"
+                className="icon-btn"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#f1f5f9',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                }}
+                onClick={handleSummaryPrevDay}
+                title="Previous Day (Left Arrow)"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#1a1a9e', letterSpacing: '0.02em' }}>
+                {summaryStartDate === summaryEndDate
+                  ? formatDDMMYYYY(summaryStartDate)
+                  : `${formatDDMMYYYY(summaryStartDate)} TO ${formatDDMMYYYY(summaryEndDate)}`}
+              </div>
+
+              <button
+                type="button"
+                className="icon-btn"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#f1f5f9',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                }}
+                onClick={handleSummaryNextDay}
+                title="Next Day (Right Arrow)"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
 
             {/* Custom Date Pickers & Export Actions */}
@@ -1625,7 +1717,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
 
           {/* TREASURY STATS & CARDS */}
           {(() => {
-            const treasury = storage.calculateTreasuryBalances(transactions);
+            const asOfDate = summaryEndDate || summaryStartDate || selectedDate;
+            const treasury = storage.calculateTreasuryBalances(transactions, asOfDate);
             return (
               <div
                 style={{
@@ -1701,8 +1794,8 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   </button>
                 </div>
 
-                {/* CASH IN HAND Stat Card */}
-                <div style={{ maxWidth: '380px', margin: '0 auto' }}>
+                {/* CASH IN HAND Stat Card (Date-Aware) */}
+                <div style={{ maxWidth: '420px', margin: '0 auto' }}>
                   <div
                     style={{
                       background: '#f0fdf4',
@@ -1718,10 +1811,15 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                       textAlign: 'center',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', gap: '0.4rem', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
                         <Banknote size={16} /> CASH IN HAND
                       </span>
+                      {asOfDate && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#15803d', background: '#dcfce7', padding: '0.1rem 0.45rem', borderRadius: '9999px', border: '1px solid #bbf7d0' }}>
+                          As of {formatDDMMYYYY(asOfDate)}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: '1.45rem', fontWeight: 900, color: treasury.actualCash < 0 ? '#dc2626' : '#166534', textAlign: 'center' }}>
                       {formatCurrency(treasury.actualCash, config.currency)}
@@ -1729,15 +1827,38 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                   </div>
                 </div>
 
-                {/* Dedicated Admin Transactions Log Panel */}
+                {/* Dedicated Transactions Log Panel with Scope Selector (Admin | Employee | All) */}
                 {(() => {
-                  const adminTxsInScope = treasury.adminTransactions.filter(
+                  const dateFilteredTxs = transactions.filter(
                     tx => (!summaryStartDate || tx.date >= summaryStartDate) && (!summaryEndDate || tx.date <= summaryEndDate)
                   );
-                  const adminIncomeTxs = adminTxsInScope.filter(tx => tx.type === 'income');
-                  const adminExpenseTxs = adminTxsInScope.filter(tx => tx.type === 'expense');
-                  const adminIncomeInScope = adminIncomeTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-                  const adminExpenseInScope = adminExpenseTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+                  const txsInScope = dateFilteredTxs.filter(tx => {
+                    if (!tx) return false;
+                    const sName = (tx.staffName || '').trim().toUpperCase();
+                    const isAdmin = sName === 'ADMIN' || sName === 'ADMIN / OWNER' || sName === 'OWNER';
+                    if (treasuryTxScope === 'admin') return isAdmin;
+                    if (treasuryTxScope === 'employee') return !isAdmin;
+                    return true; // 'all'
+                  });
+
+                  // Sort newest first
+                  txsInScope.sort((a, b) => {
+                    const dateDiff = (b.date || '').localeCompare(a.date || '');
+                    if (dateDiff !== 0) return dateDiff;
+                    return (b.time || '').localeCompare(a.time || '');
+                  });
+
+                  const incomeTxs = txsInScope.filter(tx => tx.type === 'income');
+                  const expenseTxs = txsInScope.filter(tx => tx.type === 'expense');
+                  const incomeInScope = incomeTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                  const expenseInScope = expenseTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
+                  const scopeTitle = treasuryTxScope === 'admin'
+                    ? '🏛️ Admin Transactions Log'
+                    : treasuryTxScope === 'employee'
+                    ? '👥 Employee Transactions Log'
+                    : '📊 All Transactions Log';
 
                   return (
                     <>
@@ -1750,32 +1871,73 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                           padding: '0.65rem 0.85rem',
                         }}
                       >
+                        {/* Header: Title + Scope Filter + Add Buttons */}
                         <div
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            marginBottom: '0.5rem',
+                            marginBottom: '0.6rem',
                             flexWrap: 'wrap',
-                            gap: '0.4rem',
+                            gap: '0.45rem',
                           }}
                         >
+                          {/* Title & Count */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>
-                              🏛️ Admin Transactions Log
+                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>
+                              {scopeTitle}
                             </span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '9999px', background: '#e2e8f0', color: '#475569' }}>
-                              {adminTxsInScope.length}
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '0.1rem 0.45rem', borderRadius: '9999px', background: '#e2e8f0', color: '#475569' }}>
+                              {txsInScope.length}
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {/* Scope Segmented Buttons: [ Admin | Employee | All ] */}
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              background: '#e2e8f0',
+                              padding: '0.18rem',
+                              borderRadius: '8px',
+                              gap: '0.2rem',
+                            }}
+                          >
+                            {(['admin', 'employee', 'all'] as const).map(tabKey => {
+                              const isActive = treasuryTxScope === tabKey;
+                              const label = tabKey === 'admin' ? 'Admin' : tabKey === 'employee' ? 'Employee' : 'All';
+                              return (
+                                <button
+                                  key={tabKey}
+                                  type="button"
+                                  onClick={() => setTreasuryTxScope(tabKey)}
+                                  style={{
+                                    border: 'none',
+                                    background: isActive ? '#0f172a' : 'transparent',
+                                    color: isActive ? '#ffffff' : '#334155',
+                                    fontWeight: 800,
+                                    fontSize: '0.72rem',
+                                    padding: '0.22rem 0.65rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Action Buttons for Adding Admin Entries */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                             <button
                               type="button"
                               style={{
-                                fontSize: '0.8rem',
+                                fontSize: '0.76rem',
                                 fontWeight: 800,
-                                padding: '0.35rem 0.75rem',
+                                padding: '0.3rem 0.7rem',
                                 borderRadius: '6px',
                                 background: '#ecfdf5',
                                 border: '1.5px solid #86efac',
@@ -1792,9 +1954,9 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                             <button
                               type="button"
                               style={{
-                                fontSize: '0.8rem',
+                                fontSize: '0.76rem',
                                 fontWeight: 800,
-                                padding: '0.35rem 0.75rem',
+                                padding: '0.3rem 0.7rem',
                                 borderRadius: '6px',
                                 background: '#fef2f2',
                                 border: '1.5px solid #fca5a5',
@@ -1811,9 +1973,9 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                           </div>
                         </div>
 
-                        {adminTxsInScope.length === 0 ? (
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '0.5rem 0' }}>
-                            No Admin personal withdrawals or deposit logs recorded yet.
+                        {txsInScope.length === 0 ? (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', padding: '0.6rem 0' }}>
+                            No {treasuryTxScope === 'all' ? '' : treasuryTxScope} transactions recorded for this period.
                           </div>
                         ) : showAdminSplitView ? (
                           /* 2-COLUMN SPLIT VIEW (Left: Receive, Right: Expense) */
@@ -1821,17 +1983,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                             {/* Left Column: Receive / Income */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
                               <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>RECEIVE / INCOME ({adminIncomeTxs.length})</span>
-                                <span>+{formatCurrency(adminIncomeInScope, config.currency)}</span>
+                                <span>RECEIVE / INCOME ({incomeTxs.length})</span>
+                                <span>+{formatCurrency(incomeInScope, config.currency)}</span>
                               </div>
-                              {adminIncomeTxs.length === 0 ? (
+                              {incomeTxs.length === 0 ? (
                                 <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
                                   No receive entries
                                 </div>
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
-                                  {adminIncomeTxs.map(tx => {
+                                  {incomeTxs.map(tx => {
                                     const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                    const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                                    const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
                                     return (
                                       <div
                                         key={tx.id}
@@ -1852,6 +2016,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                           <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
                                             {formatDDMMYYYY(tx.date)}
                                           </span>
+                                          {tx.staffName && (
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                              {tx.staffName}
+                                            </span>
+                                          )}
                                           <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
                                             {tx.category || 'Deposit'}
                                           </span>
@@ -1873,7 +2042,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                               type="button"
                                               className="icon-btn"
                                               style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                              onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                              onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
                                               title="Edit Entry"
                                             >
                                               <Edit2 size={11} />
@@ -1904,17 +2073,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                             {/* Right Column: Withdrawal / Expense */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
                               <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#991b1b', background: '#fee2e2', border: '1px solid #fca5a5', padding: '0.25rem 0.5rem', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>WITHDRAWAL / EXPENSE ({adminExpenseTxs.length})</span>
-                                <span>−{formatCurrency(adminExpenseInScope, config.currency)}</span>
+                                <span>WITHDRAWAL / EXPENSE ({expenseTxs.length})</span>
+                                <span>−{formatCurrency(expenseInScope, config.currency)}</span>
                               </div>
-                              {adminExpenseTxs.length === 0 ? (
+                              {expenseTxs.length === 0 ? (
                                 <div style={{ fontSize: '0.725rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.3rem 0' }}>
                                   No withdrawal entries
                                 </div>
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '250px', overflowY: 'auto' }}>
-                                  {adminExpenseTxs.map(tx => {
+                                  {expenseTxs.map(tx => {
                                     const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                                    const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                                    const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
                                     return (
                                       <div
                                         key={tx.id}
@@ -1935,6 +2106,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                           <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
                                             {formatDDMMYYYY(tx.date)}
                                           </span>
+                                          {tx.staffName && (
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '0.08rem 0.35rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                              {tx.staffName}
+                                            </span>
+                                          )}
                                           <span style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
                                             {tx.category || 'Withdrawal'}
                                           </span>
@@ -1956,7 +2132,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                               type="button"
                                               className="icon-btn"
                                               style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                              onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                              onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
                                               title="Edit Entry"
                                             >
                                               <Edit2 size={11} />
@@ -1987,9 +2163,11 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         ) : (
                           /* UNIFIED SINGLE-COLUMN VIEW (Default) */
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
-                            {adminTxsInScope.map(tx => {
+                            {txsInScope.map(tx => {
                               const isIncome = tx.type === 'income';
                               const methodUpper = (tx.paymentMethod || 'CASH').toUpperCase();
+                              const sNameUpper = (tx.staffName || '').trim().toUpperCase();
+                              const isTxAdmin = sNameUpper === 'ADMIN' || sNameUpper === 'ADMIN / OWNER' || sNameUpper === 'OWNER';
                               return (
                                 <div
                                   key={tx.id}
@@ -2006,12 +2184,19 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                     minWidth: 0,
                                   }}
                                 >
-                                  {/* Left: Date -> Head -> Remark -> Payment Method */}
+                                  {/* Left: Date -> Staff Badge -> Head -> Remark -> Payment Method */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1, flexWrap: 'wrap' }}>
                                     {/* 1. Date First */}
                                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap' }}>
                                       {formatDDMMYYYY(tx.date)}{methodUpper !== 'CASH' && tx.time ? ` • ${tx.time}` : ''}
                                     </span>
+
+                                    {/* Staff Badge */}
+                                    {tx.staffName && (
+                                      <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.4rem', borderRadius: '3px', background: isTxAdmin ? '#e0e7ff' : '#ecfdf5', color: isTxAdmin ? '#3730a3' : '#166534', border: `1px solid ${isTxAdmin ? '#c7d2fe' : '#bbf7d0'}` }}>
+                                        {tx.staffName}
+                                      </span>
+                                    )}
 
                                     {/* 2. Head (Category) */}
                                     <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
@@ -2053,7 +2238,7 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                                         type="button"
                                         className="icon-btn"
                                         style={{ width: '22px', height: '22px', color: '#2563eb' }}
-                                        onClick={() => openCounterModal(tx.type, tx, 'ADMIN')}
+                                        onClick={() => openCounterModal(tx.type, tx, tx.staffName || 'ADMIN')}
                                         title="Edit Entry"
                                       >
                                         <Edit2 size={12} />
@@ -2093,10 +2278,10 @@ export const TransactionLedger: React.FC<TransactionLedgerProps> = ({ initialMod
                         }}
                       >
                         <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1.5px solid #86efac', padding: '0.35rem 0.8rem', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                          Income: +{formatCurrency(adminIncomeInScope, config.currency)}
+                          Income: +{formatCurrency(incomeInScope, config.currency)}
                         </span>
                         <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#991b1b', background: '#fee2e2', border: '1.5px solid #fca5a5', padding: '0.35rem 0.8rem', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                          Withdrawal: −{formatCurrency(adminExpenseInScope, config.currency)}
+                          Expense: −{formatCurrency(expenseInScope, config.currency)}
                         </span>
                       </div>
                     </>
